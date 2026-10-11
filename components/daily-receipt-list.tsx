@@ -24,7 +24,7 @@ export default function DailyReceiptList({
   return (
     <div className="flex flex-col gap-3">
       {groups.map((group) => (
-        <div key={group.key} className="bg-[#F6EFE4]/70 border border-[#E3D8C6]/60 rounded-xl p-4">
+        <div key={group.key} className="bg-[#F6EFE4]/70 border border-[#E3D8C6]/60 rounded-xl p-4 border border-[#E3D8C6]/60 shadow-sm hover:scale-[1.01] transition-transform duration-150">
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm text-muted-foreground">{formatDateHeader(group.date)}</div>
             <div className="flex items-center gap-4">
@@ -37,9 +37,9 @@ export default function DailyReceiptList({
           </div>
           <div className="flex flex-col">
             {group.items.map((item, idx) => (
-                <div key={item.id} className="flex items-center justify-between py-2">
+                <div key={item.id} className="flex items-center gap-3 py-2">
                     
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                 <BrandIcon name={item.brand} icon={getBrandIcon(item.brand)} />
                 <div>
                     <div className="text-sm font-medium text-foreground">
@@ -51,7 +51,10 @@ export default function DailyReceiptList({
                     <div className="text-xs text-muted-foreground mt-0.5">{item.brand}</div>
                 </div>
                 </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex-1 text-sm text-muted-foreground truncate pl-4">
+                    {item.note}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
                     <span className="text-sm">${item.amount}</span>
                     <button onClick={() => onEdit(item)} className="text-muted-foreground cursor-pointer">
                         <Pencil className="w-4 h-4" />
@@ -60,7 +63,7 @@ export default function DailyReceiptList({
                         <Trash2 className="w-4 h-4" />
                     </button>
                     </div>
-              </div>
+                </div>
             ))}
           </div>
         </div>

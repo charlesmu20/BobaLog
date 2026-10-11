@@ -61,6 +61,18 @@ export default function HistoryView({ uid }: { uid: string }) {
   );
 
   const monthlyCount = logsInSelectedMonth.length;
+
+	const { previousMonthTotal, previousMonthCount } = useMemo(() => {
+  const [year, month] = selectedMonth.split("-").map(Number);
+  const prevKey = `${new Date(year, month - 2, 1).getFullYear()}-${String(
+    new Date(year, month - 2, 1).getMonth() + 1
+  ).padStart(2, "0")}`;
+  const prevLogs = logs.filter((log) => monthKeyOf(log.date) === prevKey);
+  return {
+    previousMonthTotal: prevLogs.reduce((sum, log) => sum + log.amount, 0),
+    previousMonthCount: prevLogs.length,
+  };
+}, [logs, selectedMonth]);
   //favorite-brands
   const favoriteBrands = useMemo(() => {
     const counts = new Map<string, number>();
@@ -100,7 +112,12 @@ export default function HistoryView({ uid }: { uid: string }) {
     <div>
 			<MonthFilter value={selectedMonth} onChange={setSelectedMonth} options={monthOptions} />
 		<div className="grid grid-cols-[1fr_1.4fr] gap-3 mb-4">
-			<StatCards total={monthlyTotal} count={monthlyCount} />
+			<StatCards
+				total={monthlyTotal}
+				count={monthlyCount}
+				totalDiff={monthlyTotal - previousMonthTotal}
+				countDiff={monthlyCount - previousMonthCount}
+			/>
 			<FavoriteBrands list={favoriteBrands} selectedMonth={selectedMonth} />
 		</div>
       <DailyReceiptList

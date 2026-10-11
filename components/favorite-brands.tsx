@@ -14,7 +14,7 @@ export default function FavoriteBrands({
   const slots = [0, 1, 2].map((i) => list[i] ?? null);
 
   return (
-    <div className="bg-[#E3CBB8]/30 rounded-xl p-3.5">
+    <div className="bg-[#E3CBB8]/50 rounded-xl p-3.5 border border-[#E3D8C6]/60 shadow-sm hover:scale-[1.01] transition-transform duration-150">
       <div className="text-sm text-[#7A4F38] mb-3">當月最愛品牌</div>
       <div className="flex flex-col">
         {slots.map((b, i) => (
