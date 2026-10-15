@@ -18,9 +18,10 @@ import FavoriteBrands from "@/components/favorite-brands";
 import DailyReceiptList from "@/components/daily-receipt-list";
 import { getCurrentMonthKey, monthKeyOf } from "@/lib/history-utils";
 import type { LogEntry } from "@/lib/types";
+import type { Brand } from "@/lib/brands";
 import ConfirmDialog from "@/components/confirm-dialog";
 
-export default function HistoryView({ uid }: { uid: string }) {
+export default function HistoryView({ uid, brands }: { uid: string; brands: Brand[] }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
   const [editingLog, setEditingLog] = useState<LogEntry | null>(null);
@@ -118,18 +119,20 @@ export default function HistoryView({ uid }: { uid: string }) {
 				totalDiff={monthlyTotal - previousMonthTotal}
 				countDiff={monthlyCount - previousMonthCount}
 			/>
-			<FavoriteBrands list={favoriteBrands} selectedMonth={selectedMonth} />
+			<FavoriteBrands list={favoriteBrands} selectedMonth={selectedMonth} brands={brands} />
 		</div>
       <DailyReceiptList
         groups={groupedByDate}
         onEdit={setEditingLog}
         onDelete={setDeleteTargetId}
+		brands={brands}
       />
       <LogModal
         open={!!editingLog}
         onClose={() => setEditingLog(null)}
         uid={uid}
         editingLog={editingLog}
+		brands={brands}
       />
 			{deleteTargetId && (
 				<ConfirmDialog

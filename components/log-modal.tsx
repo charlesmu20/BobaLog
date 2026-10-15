@@ -9,10 +9,11 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { brands, Brand, Drink } from "@/lib/brands";
+import type { Brand, Drink } from "@/lib/brands";
 import BrandIcon from "@/components/brand-icon";
 import DatePicker from "@/components/date-picker";
 import type { LogEntry } from "@/lib/types";
+import { ClearInputButton } from "@/components/ui/clear-input-button";
 
 const toDateString = (d: Date) => {
   const yyyy = d.getFullYear();
@@ -29,11 +30,13 @@ export default function LogModal({
   onClose,
   uid,
   editingLog,
+  brands,
 }: {
   open: boolean;
   onClose: () => void;
   uid: string;
   editingLog?: LogEntry | null;
+  brands: Brand[];
 }) {
   const [brandInput, setBrandInput] = useState("");
   const [brandListOpen, setBrandListOpen] = useState(false);
@@ -115,6 +118,18 @@ export default function LogModal({
       setAmount(String(selectedDrink.prices[value]));
     }
   };
+  const handleClearBrand = () => {
+    setBrandInput("");
+    setSelectedBrand(null);
+    setDrinkInput("");
+    setSelectedDrink(null);
+    setAmount("");
+  };
+
+  const handleClearDrink = () => {
+    setDrinkInput("");
+    setSelectedDrink(null);
+  };
 
   const handleSubmit = async () => {
     if (!selectedBrand || !selectedDrink || !amount) return;
@@ -195,8 +210,9 @@ export default function LogModal({
               placeholder="輸入或選擇品牌"
               className={`border border-[#E3D8C6] rounded-lg px-3 py-2 w-full text-[#4A3424] ${
                 selectedBrand ? "pl-9" : ""
-              }`}
+              } ${brandInput ? "pr-8" : ""}`}
             />
+            {brandInput && <ClearInputButton onClick={handleClearBrand} />}
           </div>
           {brandListOpen && filteredBrands.length > 0 && (
             <div className={dropdownPanelClass}>
@@ -216,23 +232,28 @@ export default function LogModal({
 
         <div className="relative mb-4">
           <label className="text-sm text-[#6B5338] block mb-1">飲料</label>
-          <input
-            type="text"
-            value={drinkInput}
-            onChange={(e) => {
-              const value = e.target.value;
-              setDrinkInput(value);
-              setDrinkListOpen(true);
-              if (selectedDrink && value !== selectedDrink.name) {
-                setSelectedDrink(null);
-              }
-            }}
-            onFocus={() => selectedBrand && setDrinkListOpen(true)}
-            onBlur={() => setTimeout(() => setDrinkListOpen(false), 150)}
-            disabled={!selectedBrand}
-            placeholder={selectedBrand ? "輸入或選擇飲料" : "請先選擇品牌"}
-            className="border border-[#E3D8C6] rounded-lg px-3 py-2 w-full text-[#4A3424] disabled:bg-[#F6EFE4]/60"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={drinkInput}
+              onChange={(e) => {
+                const value = e.target.value;
+                setDrinkInput(value);
+                setDrinkListOpen(true);
+                if (selectedDrink && value !== selectedDrink.name) {
+                  setSelectedDrink(null);
+                }
+              }}
+              onFocus={() => selectedBrand && setDrinkListOpen(true)}
+              onBlur={() => setTimeout(() => setDrinkListOpen(false), 150)}
+              disabled={!selectedBrand}
+              placeholder={selectedBrand ? "輸入或選擇飲料" : "請先選擇品牌"}
+              className={`border border-[#E3D8C6] rounded-lg px-3 py-2 w-full text-[#4A3424] disabled:bg-[#F6EFE4]/60 ${
+                drinkInput ? "pr-8" : ""
+              }`}
+            />
+            {drinkInput && <ClearInputButton onClick={handleClearDrink} />}
+          </div>
           {drinkListOpen && filteredDrinks.length > 0 && (
             <div className={dropdownPanelClass}>
               {filteredDrinks.map((d) => (

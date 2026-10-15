@@ -1,4 +1,4 @@
-import { brands } from "@/lib/brands";
+import type { Brand } from "@/lib/brands";
 
 export const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 export const CUP_COLORS = ["bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500", "bg-pink-500"];
@@ -21,5 +21,5 @@ export const formatDateHeader = (dateStr: string) => {
   return `${m}月${d}日 ${WEEKDAYS[date.getDay()]}`;
 };
 
-export const getBrandIcon = (name: string) =>
+export const getBrandIcon = (name: string, brands: Brand[]) =>
   brands.find((b) => b.name === name)?.icon || "";

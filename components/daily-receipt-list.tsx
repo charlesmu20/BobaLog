@@ -3,15 +3,18 @@ import { Coffee } from "lucide-react";
 import { Pencil, Trash2 } from "lucide-react";
 import { formatDateHeader, getBrandIcon } from "@/lib/history-utils";
 import type { LogEntry } from "@/lib/types";
+import type { Brand } from "@/lib/brands";
 
 export default function DailyReceiptList({
   groups,
   onEdit,
   onDelete,
+  brands,
 }: {
   groups: { key: string; date: string; items: LogEntry[]; subtotal: number }[];
   onEdit: (log: LogEntry) => void;
   onDelete: (id: string) => void;
+  brands: Brand[];
 }) {
   if (groups.length === 0) {
     return (
@@ -40,7 +43,7 @@ export default function DailyReceiptList({
                 <div key={item.id} className="flex items-center gap-3 py-2">
                     
                 <div className="flex items-center gap-2 shrink-0">
-                <BrandIcon name={item.brand} icon={getBrandIcon(item.brand)} />
+                <BrandIcon name={item.brand} icon={getBrandIcon(item.brand, brands)} />
                 <div>
                     <div className="text-sm font-medium text-foreground">
                     {item.drink}

@@ -1,15 +1,18 @@
 import BrandIcon from "@/components/brand-icon";
 import { Crown } from "lucide-react";
 import { getBrandIcon } from "@/lib/history-utils";
+import type { Brand } from "@/lib/brands";
 
 const CROWN_COLORS = ["text-amber-500", "text-gray-400", "text-amber-700"];
 
 export default function FavoriteBrands({
   list,
   selectedMonth,
+  brands,
 }: {
   list: { brand: string; count: number }[];
   selectedMonth: string;
+  brands: Brand[];
 }) {
   const slots = [0, 1, 2].map((i) => list[i] ?? null);
 
@@ -25,7 +28,7 @@ export default function FavoriteBrands({
             {b ? (
               <>
                 <Crown className={`w-5 h-5 ${CROWN_COLORS[i]}`} />
-                <BrandIcon name={b.brand} icon={getBrandIcon(b.brand)} size="w-8 h-8" />
+                <BrandIcon name={b.brand} icon={getBrandIcon(b.brand, brands)} size="w-8 h-8" />
                 <div className="text-base flex-1 text-[#4A3424]">{b.brand}</div>
                 <div>
                   <span className="text-lg font-bold text-[#4A3424]">{b.count}</span>{" "}

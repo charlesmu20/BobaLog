@@ -1,8 +1,22 @@
-// app/page.tsx
+"use client";
+
+import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
+import HeroSearch from "@/components/hero-search";
+import BrandCardGrid from "@/components/brand-card-grid";
+
 export default function Home() {
+
+  const { brands, brandsLoading } = useBrandSummaries();
+
+  
   return (
-    <main className="flex flex-1 items-center justify-center">
-      <p className="text-muted-foreground">首頁內容製作中</p>
+    <main className="w-full max-w-6xl mx-auto px-6 py-5">
+
+      <HeroSearch />
+      <div className="mt-8">
+        {!brandsLoading && <BrandCardGrid brands={brands} />}
+      </div>
+
     </main>
   );
 }
