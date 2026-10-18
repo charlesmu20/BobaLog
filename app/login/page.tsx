@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { FirebaseError } from "firebase/app";
 import { auth } from "@/lib/firebase";
 import { getErrorMessage } from "@/lib/firebaseErrors";
 import {
@@ -55,16 +56,16 @@ export default function LoginPage() {
         await signInWithEmailAndPassword(auth, email, password);
       }
       router.push("/");
-    } catch (err: any) {
-      setError(getErrorMessage(err.code));
+    } catch (err) {
+      setError(getErrorMessage(err instanceof FirebaseError ? err.code : "unknown"));
     }
   };
   const handleGoogleLogin = async () => {
     try {
         await signInWithPopup(auth, new GoogleAuthProvider());
         router.push("/");
-    } catch (err: any) {
-        setError(getErrorMessage(err.code));
+    } catch (err) {
+        setError(getErrorMessage(err instanceof FirebaseError ? err.code : "unknown"));
     }
   };
   if (checkingAuth) {

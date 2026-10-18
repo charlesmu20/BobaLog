@@ -8,13 +8,11 @@ export function useFavorites(uid: string | null) {
   const [favoriteBrandSlugs, setFavoriteBrandSlugs] = useState<Set<string>>(new Set());
   const [favoriteDrinkIds, setFavoriteDrinkIds] = useState<Set<string>>(new Set());
 
-//沒登入的話就把清單清空，不需查資料庫
+//沒登入的話就不訂閱資料庫,下面回傳的isBrandFavorited/isDrinkFavorited會直接用uid擋掉、回傳false,
+// 不需要在這裡用setState清空(那樣會被react-hooks/set-state-in-effect標記,
+// 因為這個判斷當下就能決定,不是在等任何外部資料回應)
   useEffect(() => {
-    if (!uid) {
-      setFavoriteBrandSlugs(new Set());
-      setFavoriteDrinkIds(new Set());
-      return;
-    }
+    if (!uid) return;
     // 去 favoriteBrands 這個集合,挑出 uid 欄位等於「現在這個人」的文件
     const brandsQuery = query(collection(db, "favoriteBrands"), where("uid", "==", uid));
     // 資料庫有變化就自動重新執行
@@ -58,10 +56,11 @@ export function useFavorites(uid: string | null) {
     }
   };
 
-  // 把這個 hook 內部狀態包成外部好用的介面,讓頁面元件可以直接呼叫
+  // 把這個 hook 內部狀態包成外部好用的介面,讓頁面元件可以直接呼叫。
+  // 這裡用uid擋一下:沒登入的話不管state裡還留著上一個使用者登出前的舊資料沒有,一律當作沒收藏
   return {
-    isBrandFavorited: (slug: string) => favoriteBrandSlugs.has(slug),
-    isDrinkFavorited: (brandSlug: string, drinkId: string) => favoriteDrinkIds.has(drinkId),
+    isBrandFavorited: (slug: string) => !!uid && favoriteBrandSlugs.has(slug),
+    isDrinkFavorited: (brandSlug: string, drinkId: string) => !!uid && favoriteDrinkIds.has(drinkId),
     toggleBrandFavorite,
     toggleDrinkFavorite,
   };

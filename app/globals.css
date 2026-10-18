@@ -55,15 +55,17 @@
   --popover-foreground: oklch(0.3353 0.0132 2.7676);
   --primary: oklch(0.6200 0.1200 50.0000);
   --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.9577 0.0209 24.7834);
-  --secondary-foreground: oklch(0.5528 0.1336 30.5051);
-  --muted: oklch(0.9637 0.0182 34.2972);
-  --muted-foreground: oklch(0.5534 0.0116 58.0708);
-  --accent: oklch(0.8206 0.1144 54.6255);
-  --accent-foreground: oklch(0.3353 0.0132 2.7676);
+  /* 這幾個原本是shadcn的預設粉橘色,跟全站手刻的米茶色(#F6EFE4 / #E3D8C6 / #8A7A63 / #4A3424)對不起來,
+     改成對應的米茶色,讓dropdown-menu、avatar、button這些吃變數的shadcn元件跟其他手刻的地方同一套色 */
+  --secondary: oklch(0.9546 0.0165 79.3513);
+  --secondary-foreground: oklch(0.3459 0.0412 56.9136);
+  --muted: oklch(0.9546 0.0165 79.3513);
+  --muted-foreground: oklch(0.5879 0.0389 76.7986);
+  --accent: oklch(0.9546 0.0165 79.3513);
+  --accent-foreground: oklch(0.3459 0.0412 56.9136);
   --destructive: oklch(0.6132 0.2078 20.3164);
-  --border: oklch(0.9277 0.0377 36.2254);
-  --input: oklch(0.9277 0.0377 36.2254);
+  --border: oklch(0.8862 0.0271 80.2407);
+  --input: oklch(0.8862 0.0271 80.2407);
   --ring: oklch(0.6200 0.1200 50.0000);
   --chart-1: oklch(0.6200 0.1200 50.0000);
   --chart-2: oklch(0.8206 0.1144 54.6255);
@@ -134,4 +136,8 @@
   10% { opacity: 0.35; }
   90% { opacity: 0.35; }
   100% { transform: translateY(-120px); opacity: 0; }
+}
+@keyframes infowindow-pop {
+  from { opacity: 0; transform: scale(0.92) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }

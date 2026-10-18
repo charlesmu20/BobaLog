@@ -128,6 +128,7 @@ export default function HistoryView({ uid, brands }: { uid: string; brands: Bran
 		brands={brands}
       />
       <LogModal
+        key={editingLog?.id ?? "new"}
         open={!!editingLog}
         onClose={() => setEditingLog(null)}
         uid={uid}

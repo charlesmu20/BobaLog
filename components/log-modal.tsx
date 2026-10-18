@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   collection,
   addDoc,
@@ -38,18 +38,27 @@ export default function LogModal({
   editingLog?: LogEntry | null;
   brands: Brand[];
 }) {
-  const [brandInput, setBrandInput] = useState("");
+  // 原本這些初始值是用useEffect在「editingLog變了之後」才setState回填,
+  // 會被react-hooks/set-state-in-effect標記(effect裡直接setState,沒有等任何外部東西)。
+  // 現在改成直接在這裡算出正確的初始值;要搭配外層(history-view.tsx)幫<LogModal>加上
+  // key={editingLog?.id ?? "new"},這樣每次切換成編輯不同筆紀錄,React都會把這個元件當成
+  // 全新的重新掛載一次,這些初始值才會重新跑一次,效果跟原本的useEffect一樣,但不用在effect裡setState
+  const initialBrand = editingLog ? brands.find((b) => b.name === editingLog.brand) ?? null : null;
+  const initialDrink =
+    editingLog && initialBrand ? initialBrand.drinks.find((d) => d.name === editingLog.drink) ?? null : null;
+
+  const [brandInput, setBrandInput] = useState(editingLog?.brand ?? "");
   const [brandListOpen, setBrandListOpen] = useState(false);
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(initialBrand);
 
-  const [drinkInput, setDrinkInput] = useState("");
+  const [drinkInput, setDrinkInput] = useState(editingLog?.drink ?? "");
   const [drinkListOpen, setDrinkListOpen] = useState(false);
-  const [selectedDrink, setSelectedDrink] = useState<Drink | null>(null);
+  const [selectedDrink, setSelectedDrink] = useState<Drink | null>(initialDrink);
 
-  const [size, setSize] = useState<"M" | "L">("M");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(toDateString(new Date()));
-  const [note, setNote] = useState("");
+  const [size, setSize] = useState<"M" | "L">(editingLog?.size || "M");
+  const [amount, setAmount] = useState(editingLog ? String(editingLog.amount) : "");
+  const [date, setDate] = useState(editingLog?.date ?? toDateString(new Date()));
+  const [note, setNote] = useState(editingLog?.note ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -63,23 +72,6 @@ export default function LogModal({
     setDate(toDateString(new Date()));
     setNote("");
   };
-
-  useEffect(() => {
-    if (editingLog) {
-      const brand = brands.find((b) => b.name === editingLog.brand) || null;
-      const drink = brand?.drinks.find((d) => d.name === editingLog.drink) || null;
-      setSelectedBrand(brand);
-      setBrandInput(editingLog.brand);
-      setSelectedDrink(drink);
-      setDrinkInput(editingLog.drink);
-      setSize(editingLog.size || "M");
-      setAmount(String(editingLog.amount));
-      setDate(editingLog.date);
-      setNote(editingLog.note || "");
-    } else {
-      resetForm();
-    }
-  }, [editingLog]);
 
   const filteredBrands = useMemo(
     () => brands.filter((b) => b.name.includes(brandInput)),

@@ -1,9 +1,10 @@
-// app/map/page.tsx
+"use client";
+
 import MapView from "@/components/map-view";
 
 export default function MapPage() {
   return (
-    <main className="flex flex-1">
+    <main className="p-4 md:p-6">
       <MapView />
     </main>
   );
