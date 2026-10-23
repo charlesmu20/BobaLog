@@ -23,16 +23,24 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
-    // favoriteBrands / favoriteDrinks:只能讀寫自己uid的收藏(只有create跟delete,沒有update,
-    // 因為程式碼裡沒有「修改」收藏這個動作,只有加入/取消)
+    // favoriteBrands / favoriteDrinks:只能讀寫自己uid的收藏。update只給拖曳排序用,
+    // 只能改order欄位,uid不能被換成別人(避免奪取別人的收藏文件)
     match /favoriteBrands/{docId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.uid;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.auth.uid == request.resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["order"]);
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
     match /favoriteDrinks/{docId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.uid;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.auth.uid == request.resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["order"]);
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 

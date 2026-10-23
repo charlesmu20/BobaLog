@@ -116,7 +116,7 @@ export default function DrinkCommentPage({
             <ul aria-label="價格" className="flex flex-wrap gap-2">
               {sameSizePrice ? (
                 <li className="inline-flex items-baseline gap-1.5 rounded-full border-2 border-[#3C332B] bg-white px-3 py-1 text-sm font-bold text-[#3C332B]">
-                  <span className="text-xs font-medium text-[#9A8B7A]">M / L</span>${drink.prices.M}
+                  ${drink.prices.M}
                 </li>
               ) : (
                 <>
