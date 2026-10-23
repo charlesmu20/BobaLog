@@ -66,31 +66,34 @@ export default function FavoriteDrinkCard({
         <Heart className="h-3 w-3" style={{ color: "#C9732F" }} fill="#C9732F" />
       </button>
 
-      {/* 品牌logo,點了跳去留言頁 */}
-      <Link
-        href={`/brand/${brandSlug}/drink/${drinkId}`}
-        draggable={false}
-        onClick={(e) => {
-          // 編輯模式中點擊一律不跳轉,只能拖曳
-          if (isEditMode) e.preventDefault();
-        }}
-        className="block h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[#F6EFE4] shadow-[0_4px_10px_-2px_rgba(201,115,47,0.4)]"
-      >
-        <BrandIcon name={brandName} icon={brandIcon} size="w-full h-full" />
-      </Link>
+      {/* 品牌logo,點了跳去留言頁。編輯模式中根本不渲染<Link>,換成普通<div>——
+          沒有連結元素,瀏覽器就沒有東西可以跳轉,不用依賴preventDefault擋不擋得住 */}
+      {isEditMode ? (
+        <div className="block h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[#F6EFE4] shadow-[0_4px_10px_-2px_rgba(201,115,47,0.4)]">
+          <BrandIcon name={brandName} icon={brandIcon} size="w-full h-full" />
+        </div>
+      ) : (
+        <Link
+          href={`/brand/${brandSlug}/drink/${drinkId}`}
+          draggable={false}
+          className="block h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[#F6EFE4] shadow-[0_4px_10px_-2px_rgba(201,115,47,0.4)]"
+        >
+          <BrandIcon name={brandName} icon={brandIcon} size="w-full h-full" />
+        </Link>
+      )}
 
       {/* 飲料名稱(主要)+品牌名稱(次要),同樣包成連結 */}
-      <Link
-        href={`/brand/${brandSlug}/drink/${drinkId}`}
-        draggable={false}
-        onClick={(e) => {
-          if (isEditMode) e.preventDefault();
-        }}
-        className="min-w-0 pr-5"
-      >
-        <p className="truncate text-lg font-medium text-[#4A3424]">{name}</p>
-        <p className="truncate text-sm text-[#8A7A63]">{brandName}</p>
-      </Link>
+      {isEditMode ? (
+        <div className="min-w-0 pr-5">
+          <p className="truncate text-lg font-medium text-[#4A3424]">{name}</p>
+          <p className="truncate text-sm text-[#8A7A63]">{brandName}</p>
+        </div>
+      ) : (
+        <Link href={`/brand/${brandSlug}/drink/${drinkId}`} draggable={false} className="min-w-0 pr-5">
+          <p className="truncate text-lg font-medium text-[#4A3424]">{name}</p>
+          <p className="truncate text-sm text-[#8A7A63]">{brandName}</p>
+        </Link>
+      )}
     </div>
   );
 }

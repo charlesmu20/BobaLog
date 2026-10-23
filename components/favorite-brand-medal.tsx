@@ -55,19 +55,21 @@ export default function FavoriteBrandMedal({
           }`}
         />
 
-        {/* 內圈放品牌logo,點了跳去菜單頁。按住不放超過一小段時間才會變成拖曳,
-            短按一樣能正常點擊跳轉,兩者不衝突 */}
-        <Link
-          href={`/brand/${slug}`}
-          draggable={false}
-          onClick={(e) => {
-            // 編輯模式中點擊一律不跳轉,只能拖曳
-            if (isEditMode) e.preventDefault();
-          }}
-          className="absolute inset-[6px] block overflow-hidden rounded-full border-2 border-white shadow-[0_6px_14px_-4px_rgba(201,115,47,0.5)]"
-        >
-          <BrandIcon name={name} icon={icon} size="w-full h-full" />
-        </Link>
+        {/* 內圈放品牌logo。編輯模式中根本不渲染<Link>,換成普通<div>——
+            沒有連結元素,瀏覽器就沒有東西可以跳轉,不用依賴preventDefault擋不擋得住 */}
+        {isEditMode ? (
+          <div className="absolute inset-[6px] block overflow-hidden rounded-full border-2 border-white shadow-[0_6px_14px_-4px_rgba(201,115,47,0.5)]">
+            <BrandIcon name={name} icon={icon} size="w-full h-full" />
+          </div>
+        ) : (
+          <Link
+            href={`/brand/${slug}`}
+            draggable={false}
+            className="absolute inset-[6px] block overflow-hidden rounded-full border-2 border-white shadow-[0_6px_14px_-4px_rgba(201,115,47,0.5)]"
+          >
+            <BrandIcon name={name} icon={icon} size="w-full h-full" />
+          </Link>
+        )}
 
         {/* 名次牌,左上角,前三名有強調色 */}
         <span
@@ -89,16 +91,13 @@ export default function FavoriteBrandMedal({
         </button>
       </div>
 
-      <Link
-        href={`/brand/${slug}`}
-        draggable={false}
-        onClick={(e) => {
-          if (isEditMode) e.preventDefault();
-        }}
-        className="text-center text-sm font-medium text-[#4A3424]"
-      >
-        {name}
-      </Link>
+      {isEditMode ? (
+        <span className="text-center text-sm font-medium text-[#4A3424]">{name}</span>
+      ) : (
+        <Link href={`/brand/${slug}`} draggable={false} className="text-center text-sm font-medium text-[#4A3424]">
+          {name}
+        </Link>
+      )}
     </div>
   );
 }
