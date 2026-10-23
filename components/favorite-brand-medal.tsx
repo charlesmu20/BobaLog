@@ -19,7 +19,7 @@ export default function FavoriteBrandMedal({
   slug,
   icon,
   onToggleFavorite,
-  onLinkClick,
+  isEditMode,
 }: {
   id: string;
   rank: number;
@@ -27,11 +27,15 @@ export default function FavoriteBrandMedal({
   slug: string;
   icon: string;
   onToggleFavorite: () => void;
-  onLinkClick?: () => boolean;
+  isEditMode: boolean;
 }) {
   // dnd-kit的排序hook:setNodeRef要接到最外層、attributes+listeners決定「按在哪裡可以拖」,
-  // transform/transition是放開後其他項目滑動讓位的動畫
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // transform/transition是放開後其他項目滑動讓位的動畫。
+  // disabled跟著isEditMode:不是編輯模式的時候,卡片完全不會進入拖曳狀態,單純就是連結
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled: !isEditMode,
+  });
 
   return (
     <div
@@ -39,9 +43,9 @@ export default function FavoriteBrandMedal({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={`flex w-[110px] cursor-grab touch-manipulation select-none flex-col items-center active:cursor-grabbing ${
-        isDragging ? "z-20 -rotate-2 scale-[1.06]" : ""
-      }`}
+      className={`flex w-[110px] touch-manipulation select-none flex-col items-center ${
+        isEditMode ? "cursor-grab active:cursor-grabbing" : ""
+      } ${isDragging ? "z-20 -rotate-2 scale-[1.06]" : ""}`}
     >
       <div className="relative mb-2.5 h-[92px] w-[92px]">
         {/* 外圈裝飾圓環,加上底色讓它像有個「底盤」撐著,不是只有一條線 */}
@@ -57,7 +61,8 @@ export default function FavoriteBrandMedal({
           href={`/brand/${slug}`}
           draggable={false}
           onClick={(e) => {
-            if (onLinkClick?.()) e.preventDefault();
+            // 編輯模式中點擊一律不跳轉,只能拖曳
+            if (isEditMode) e.preventDefault();
           }}
           className="absolute inset-[6px] block overflow-hidden rounded-full border-2 border-white shadow-[0_6px_14px_-4px_rgba(201,115,47,0.5)]"
         >
@@ -88,7 +93,7 @@ export default function FavoriteBrandMedal({
         href={`/brand/${slug}`}
         draggable={false}
         onClick={(e) => {
-          if (onLinkClick?.()) e.preventDefault();
+          if (isEditMode) e.preventDefault();
         }}
         className="text-center text-sm font-medium text-[#4A3424]"
       >

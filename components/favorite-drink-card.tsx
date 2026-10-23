@@ -20,7 +20,7 @@ export default function FavoriteDrinkCard({
   brandIcon,
   drinkId,
   onToggleFavorite,
-  onLinkClick,
+  isEditMode,
 }: {
   id: string;
   rank: number;
@@ -30,9 +30,12 @@ export default function FavoriteDrinkCard({
   brandIcon: string;
   drinkId: string;
   onToggleFavorite: () => void;
-  onLinkClick?: () => boolean;
+  isEditMode: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled: !isEditMode,
+  });
 
   return (
     <div
@@ -40,9 +43,9 @@ export default function FavoriteDrinkCard({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={`relative flex cursor-grab touch-manipulation select-none items-center gap-3 rounded-2xl border-[3px] border-[#3C332B] bg-[#F6F2EA] p-3.5 shadow-[4px_4px_0_0_#3C332B] transition-shadow duration-150 active:cursor-grabbing ${
-        isDragging ? "z-20 scale-[1.04] -rotate-1 shadow-[8px_10px_0_0_#3C332B]" : ""
-      }`}
+      className={`relative flex touch-manipulation select-none items-center gap-3 rounded-2xl border-[3px] border-[#3C332B] bg-[#F6F2EA] p-3.5 shadow-[4px_4px_0_0_#3C332B] transition-shadow duration-150 ${
+        isEditMode ? "cursor-grab active:cursor-grabbing" : ""
+      } ${isDragging ? "z-20 scale-[1.04] -rotate-1 shadow-[8px_10px_0_0_#3C332B]" : ""}`}
     >
       {/* 名次牌 */}
       <span
@@ -68,7 +71,8 @@ export default function FavoriteDrinkCard({
         href={`/brand/${brandSlug}/drink/${drinkId}`}
         draggable={false}
         onClick={(e) => {
-          if (onLinkClick?.()) e.preventDefault();
+          // 編輯模式中點擊一律不跳轉,只能拖曳
+          if (isEditMode) e.preventDefault();
         }}
         className="block h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[#F6EFE4] shadow-[0_4px_10px_-2px_rgba(201,115,47,0.4)]"
       >
@@ -80,7 +84,7 @@ export default function FavoriteDrinkCard({
         href={`/brand/${brandSlug}/drink/${drinkId}`}
         draggable={false}
         onClick={(e) => {
-          if (onLinkClick?.()) e.preventDefault();
+          if (isEditMode) e.preventDefault();
         }}
         className="min-w-0 pr-5"
       >

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Store, CupSoda } from "lucide-react";
@@ -108,18 +108,27 @@ export default function FavoritesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [favoriteDrinkIdsKey]);
 
-  // 拖曳放開的瞬間,滑鼠/手指通常還停在某個項目的連結上面,瀏覽器會在mouseup之後
-  // 照樣補發一個click事件,害Link以為「使用者點了它」就跳轉過去。
-  // 用這個旗標記住「剛剛發生過拖曳」,連結點擊時檢查一下、擋掉這一次就重置回false,
-  // 下次正常點擊才不會被誤擋
-  const justDraggedRef = useRef(false);
-  const blockClickIfJustDragged = () => {
-    if (justDraggedRef.current) {
-      justDraggedRef.current = false;
-      return true;
+  // 改成「編輯模式」:平常點卡片就是正常連結,可以點進品牌/飲料頁;
+  // 要排序時先按「編輯順序」進入編輯模式,這時候卡片才能拖曳,
+  // 同時把所有連結的點擊都直接擋掉(不管有沒有真的拖曳到),不用再猜測是不是剛拖曳完,
+  // 按下「儲存」才真正寫進資料庫並退出編輯模式
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  function handleSaveOrder() {
+    if (activeTab === "brand") {
+      reorderBrandFavorites(localBrandOrder);
+    } else {
+      reorderDrinkFavorites(localDrinkOrder);
     }
-    return false;
-  };
+    setIsEditMode(false);
+  }
+
+  function handleCancelEdit() {
+    // 放棄還沒儲存的拖曳結果,退回Firestore目前存的順序
+    setLocalBrandOrder(favoriteBrandSlugs);
+    setLocalDrinkOrder(favoriteDrinkIds);
+    setIsEditMode(false);
+  }
 
   // 滑鼠跟觸控分開設定,因為兩種輸入習慣不一樣:
   // 滑鼠按下去通常會立刻移動,所以用「移動超過8px才算拖曳」(distance),按下去拖一下就有反應;
@@ -161,9 +170,8 @@ export default function FavoritesPage() {
     const oldIndex = orderedBrandSlugs.indexOf(String(active.id));
     const newIndex = orderedBrandSlugs.indexOf(String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
-    const next = arrayMove(orderedBrandSlugs, oldIndex, newIndex);
-    setLocalBrandOrder(next);
-    reorderBrandFavorites(next);
+    // 編輯模式中只先改本地順序,實際寫進資料庫要等按下「儲存」
+    setLocalBrandOrder(arrayMove(orderedBrandSlugs, oldIndex, newIndex));
   }
 
   function handleDrinkDragEnd(event: DragEndEvent) {
@@ -172,47 +180,68 @@ export default function FavoritesPage() {
     const oldIndex = orderedDrinkIds.indexOf(String(active.id));
     const newIndex = orderedDrinkIds.indexOf(String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
-    const next = arrayMove(orderedDrinkIds, oldIndex, newIndex);
-    setLocalDrinkOrder(next);
-    reorderDrinkFavorites(next);
+    setLocalDrinkOrder(arrayMove(orderedDrinkIds, oldIndex, newIndex));
   }
 
   return (
     <main className={MAIN_CLASS}>
       <h1 className="text-2xl font-black text-[#3C332B]">收藏</h1>
-      <p className="mt-1 text-sm text-[#8A7A63]">按住項目拖曳,就能調整順序</p>
+      <p className="mt-1 text-sm text-[#8A7A63]">
+        {isEditMode ? "拖曳項目調整順序,排好後記得按「儲存」" : "想調整順序的話,先按「編輯順序」"}
+      </p>
 
-      <div className="mt-5 mb-6 inline-flex rounded-full border-[3px] border-[#3C332B] bg-[#F6EFE4] p-1">
-        <button
-          onClick={() => setActiveTab("brand")}
-          className={`rounded-full px-5 py-1.5 text-sm font-black transition-colors ${
-            activeTab === "brand" ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]" : "text-[#8A7A63]"
-          }`}
-        >
-          品牌
-        </button>
-        <button
-          onClick={() => setActiveTab("drink")}
-          className={`rounded-full px-5 py-1.5 text-sm font-black transition-colors ${
-            activeTab === "drink" ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]" : "text-[#8A7A63]"
-          }`}
-        >
-          飲料
-        </button>
+      <div className="mt-5 mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-full border-[3px] border-[#3C332B] bg-[#F6EFE4] p-1">
+          <button
+            onClick={() => setActiveTab("brand")}
+            disabled={isEditMode}
+            className={`rounded-full px-5 py-1.5 text-sm font-black transition-colors ${
+              activeTab === "brand" ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]" : "text-[#8A7A63]"
+            } ${isEditMode ? "opacity-50" : ""}`}
+          >
+            品牌
+          </button>
+          <button
+            onClick={() => setActiveTab("drink")}
+            disabled={isEditMode}
+            className={`rounded-full px-5 py-1.5 text-sm font-black transition-colors ${
+              activeTab === "drink" ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]" : "text-[#8A7A63]"
+            } ${isEditMode ? "opacity-50" : ""}`}
+          >
+            飲料
+          </button>
+        </div>
+
+        {isEditMode ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCancelEdit}
+              className="rounded-full border-2 border-[#3C332B] bg-white px-4 py-1.5 text-sm font-bold text-[#8A7A63] transition-transform hover:-translate-y-0.5"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSaveOrder}
+              className="rounded-full border-2 border-[#3C332B] bg-[#A6C285] px-4 py-1.5 text-sm font-bold text-[#2E4019] shadow-[3px_3px_0_0_#3C332B] transition-transform hover:-translate-y-0.5"
+            >
+              儲存
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsEditMode(true)}
+            className="rounded-full border-2 border-[#3C332B] bg-white px-4 py-1.5 text-sm font-bold text-[#4A3424] transition-transform hover:-translate-y-0.5"
+          >
+            編輯順序
+          </button>
+        )}
       </div>
 
       {activeTab === "brand" ? (
         orderedBrands.length === 0 ? (
           <EmptyState variant="brand" />
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={() => {
-              justDraggedRef.current = true;
-            }}
-            onDragEnd={handleBrandDragEnd}
-          >
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleBrandDragEnd}>
             <SortableContext items={orderedBrandSlugs} strategy={rectSortingStrategy}>
               <div className="flex flex-wrap gap-x-6 gap-y-8">
                 {orderedBrands.map((b, i) => (
@@ -224,7 +253,7 @@ export default function FavoritesPage() {
                     slug={b.slug}
                     icon={b.icon}
                     onToggleFavorite={() => toggleBrandFavorite(b.slug)}
-                    onLinkClick={blockClickIfJustDragged}
+                    isEditMode={isEditMode}
                   />
                 ))}
               </div>
@@ -234,14 +263,7 @@ export default function FavoritesPage() {
       ) : orderedDrinks.length === 0 ? (
         <EmptyState variant="drink" />
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={() => {
-            justDraggedRef.current = true;
-          }}
-          onDragEnd={handleDrinkDragEnd}
-        >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDrinkDragEnd}>
           <SortableContext items={orderedDrinkIds} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {orderedDrinks.map((d, i) => (
@@ -255,7 +277,7 @@ export default function FavoritesPage() {
                   brandIcon={d.brandIcon}
                   drinkId={d.id}
                   onToggleFavorite={() => toggleDrinkFavorite(d.brandSlug, d.id)}
-                  onLinkClick={blockClickIfJustDragged}
+                  isEditMode={isEditMode}
                 />
               ))}
             </div>
