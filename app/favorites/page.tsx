@@ -18,8 +18,8 @@ import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
 import { useSearchIndex } from "@/lib/hooks/useSearchIndex";
 import { useFavorites } from "@/lib/hooks/useFavorites";
-import FavoriteBrandMedal from "@/components/favorite-brand-medal";
-import FavoriteDrinkCard from "@/components/favorite-drink-card";
+import FavoriteBrandMedal from "@/components/favorites/favorite-brand-medal";
+import FavoriteDrinkCard from "@/components/favorites/favorite-drink-card";
 import LoadingCard from "@/components/loading-card";
 
 const MAIN_CLASS = "mx-auto w-full max-w-6xl min-w-0 px-2.5 py-6 min-[760px]:px-6";
