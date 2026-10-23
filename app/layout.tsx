@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/nav-bar";
 import Footer from "@/components/footer";
+import BadgeUnlockToast from "@/components/badges/badge-unlock-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,10 +30,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           疊在一起,瀏覽器不一定能正確把高度一路撐下去給main用height:100%的Google Map——
           這就是地圖頁空白的原因。Grid的1fr中間那格高度是直接算出來的,main不用再包一層div,
           地圖的flex-1/height:100%才吃得到實際的高度。 */}
-      <body className="min-h-screen grid grid-rows-[auto_1fr_auto]">
+      <body className="min-h-screen w-full overflow-x-hidden grid grid-rows-[auto_1fr_auto]">
         <NavBar />
         {children}
         <Footer />
+        <BadgeUnlockToast />
       </body>
     </html>
   );

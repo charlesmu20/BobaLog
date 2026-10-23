@@ -57,25 +57,26 @@ export default function PlacesLayer({
   const placesLib = useMapsLibrary("places");
   const [rawPlaces, setRawPlaces] = useState<RawPlace[]>([]);
 
-  // 只負責打Google API抓附近店家,不處理品牌比對——這樣Firestore的brands晚載入完成
-  // 也不需要重打一次Google API,省錢也不會畫面重新閃一次loading
+  // 只負責打Google API抓附近店家,不處理品牌比對——這樣Firestore的brands晚載入完成也不需要重打一次Google API,不會畫面重新閃一次loading
   useEffect(() => {
     if (!map || !placesLib) return;
-
+    
+    // 如果這次搜尋還沒回應、effect就被新一輪取代了,靠這個旗標擋掉過時的結果,避免蓋掉新資料
     let cancelled = false;
 
     (async () => {
       try {
+        //使用者到底有沒有在搜尋框打東西
         const query = searchQuery.trim();
         const isSearching = query.length > 0;
+        //有的話搜尋範圍擴大
         const radius = isSearching ? SEARCH_EXPANDED_RADIUS_METERS : SEARCH_RADIUS_METERS;
-
+        //用文字搜尋地點
         const { places: results } = await placesLib.Place.searchByText({
           textQuery: isSearching ? `${query} 手搖飲料店` : "手搖飲料店",
+          //抓 名字、地點、營業狀態、營業時間
           fields: ["displayName", "location", "businessStatus", "regularOpeningHours"],
-          // 一般瀏覽用locationBias(只是偏好附近,還是可能抓到範圍外的);有打字搜尋
-          // 改用locationRestriction——硬性限制在這個範圍內,不然搜「50嵐」這種連鎖店,
-          // 用relevance排序反而可能把很遠的分店也排進來
+          // 搜店名時用locationRestriction硬性限制範圍(避免搜到很遠的分店);單純瀏覽附近才用較寬鬆的locationBias
           ...(isSearching
             ? { locationRestriction: boundsFromRadius(center, radius) }
             : { locationBias: { center, radius } }),
@@ -85,9 +86,11 @@ export default function PlacesLayer({
         });
 
         if (cancelled) return;
-
+        //將result整理成自己要的格式
         const mapped: RawPlace[] = results
+          // 沒有座標資料的結果濾掉
           .filter((r: google.maps.places.Place) => r.location)
+          //把Google的原始格式,轉換成我們自己的RawPlace格式
           .map((r: google.maps.places.Place) => {
             const loc = { lat: r.location!.lat(), lng: r.location!.lng() };
             return {
@@ -102,16 +105,17 @@ export default function PlacesLayer({
               distance: distanceMeters(center, loc),
             };
           })
+          //濾掉距離太遠的
           .filter((p) => p.distance <= radius * 1.5)
+          // 有搜尋店名的時候,Google回來的結果不見得真的符合你打的字(fuzzy搜尋問題),
+          // 這裡自己再篩一次,店名真的包含輸入文字才留下;沒在搜尋(瀏覽附近模式)就不篩,全部保留
+          .filter((p) => !isSearching || p.name.toLowerCase().includes(query.toLowerCase()))
+          //依距離排序
           .sort((a, b) => a.distance - b.distance);
 
         setRawPlaces(mapped);
 
-        // 有打字搜尋、而且真的搜到結果的話,自動選中最近的那一家(地圖會順便平移過去)——
-        // 不然搜到的店很可能完全在目前畫面外,使用者只能從清單裡自己找。故意寫在這裡
-        // (API拿到資料的當下),不要另外開一個監聽places變化的useEffect去做,不然之後
-        // brands重新載入、places重新算一次的時候,也會被誤判成「又有新搜尋結果」,
-        // 把使用者原本手動選的店家強制切走
+        // 有打字搜尋、而且真的搜到結果的話,自動選中最近的那一家(地圖會順便平移過去)
         if (isSearching && mapped.length > 0) {
           onSelect(mapped[0].id);
         }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { User } from "lucide-react";
 import type { Comment } from "@/lib/hooks/useComments";
 import { Textarea } from "@/components/ui/textarea";
+import { STICKER_BUTTON_BASE } from "@/lib/sticker-button";
 
 const MAX_LENGTH = 200;
 
@@ -53,41 +54,39 @@ export default function CommentSection({
 
   return (
     <div>
-      <p className="text-sm font-medium text-[#4A3424] mb-3">留言 ({comments.length})</p>
+      <p className="text-base font-black text-[#3C332B] mb-3">留言 ({comments.length})</p>
 
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="分享你的想法..."
-        className="min-h-[60px] resize-none border-[#E3D8C6] text-sm text-[#4A3424] placeholder:text-[#8A7A63] focus-visible:border-[#C9732F] focus-visible:ring-[#C9732F]/30"
+        className="min-h-[60px] resize-none rounded-xl border-[3px] border-[#3C332B] bg-white text-sm text-[#3C332B] shadow-[3px_3px_0_0_#3C332B] transition-shadow placeholder:text-[#9A8B7A] focus-visible:border-[#3C332B] focus-visible:shadow-[4px_4px_0_0_#A6C285] focus-visible:ring-0"
       />
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-      <div className="flex justify-end mt-2">
+      <div className="flex justify-end mt-2.5">
         <button
           onClick={handleSubmit}
-          className="bg-[#C9732F] text-white text-sm px-4 py-1.5 rounded-lg"
+          className={`${STICKER_BUTTON_BASE} rounded-xl px-4 py-1.5 text-sm`}
         >
           送出
         </button>
       </div>
 
-      <div className="h-px bg-[#E3D8C6] my-4" />
-
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 mt-5">
         {comments.length === 0 ? (
-          <p className="text-xs text-[#8A7A63]">還沒有留言,來留下第一則吧</p>
+          <p className="text-xs text-[#6B5D4F]">還沒有留言,來留下第一則吧</p>
         ) : (
           comments.map((c) => (
             <div key={c.id} className="flex gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#F6EFE4] flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4" style={{ color: "#C9732F" }} />
+              <div className="w-8 h-8 rounded-full border-2 border-[#3C332B] bg-white flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4" style={{ color: "#3C332B" }} />
               </div>
               <div className="min-w-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-medium text-[#4A3424]">{c.displayName}</span>
-                  <span className="text-xs text-[#8A7A63]">{formatRelativeTime(c.createdAt)}</span>
+                  <span className="text-sm font-bold text-[#3C332B]">{c.displayName}</span>
+                  <span className="text-xs text-[#6B5D4F]">{formatRelativeTime(c.createdAt)}</span>
                 </div>
-                <p className="text-sm text-[#4A3424] mt-0.5 break-words">{c.text}</p>
+                <p className="text-sm text-[#3C332B] mt-0.5 break-words">{c.text}</p>
               </div>
             </div>
           ))

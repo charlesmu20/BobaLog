@@ -45,6 +45,7 @@ export default function MapSidebar({
 
   return (
     <div className="w-[220px] flex-shrink-0 bg-white border-r border-[#E3D8C6] flex flex-col">
+      {/* 搜尋與篩選表單 */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -83,7 +84,7 @@ export default function MapSidebar({
           </button>
         )}
 
-        {/* 篩選:點了跳出小面板,裡面兩個checkbox勾了就即時套用,不用再按確定 */}
+        {/* 篩選 */}
         <div ref={filterRef} className="relative flex-shrink-0">
           <button
             type="button"
@@ -95,7 +96,7 @@ export default function MapSidebar({
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
           </button>
-
+          {/* 篩選彈出面板 */}
           {filterOpen && (
             <div
               className="absolute right-0 top-6 z-10 w-40 bg-white rounded-lg shadow-md border border-[#E3D8C6] p-2"
@@ -123,14 +124,14 @@ export default function MapSidebar({
           )}
         </div>
       </form>
-
+      {/* 飲料店清單 */}
       <div className="p-3 border-b border-[#E3D8C6]">
         <p className="text-xs font-medium text-[#4A3424]">
           {searchQuery ? `「${searchQuery}」的搜尋結果` : "附近店家"}
           {places.length > 0 && ` (${places.length})`}
         </p>
       </div>
-
+      {/* 無結果 */}
       <div className="flex-1 overflow-y-auto p-2">
         {places.length === 0 && (
           <p className="text-xs text-[#8A7A63] px-2 py-3">
@@ -141,7 +142,7 @@ export default function MapSidebar({
               : "正在幫你找附近的手搖飲..."}
           </p>
         )}
-
+      {/*  */}
         {places.map((place) => (
           <button
             key={place.id}

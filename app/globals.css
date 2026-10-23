@@ -141,3 +141,72 @@
   from { opacity: 0; transform: scale(0.92) translateY(4px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
+/* 首頁Hero背景飄浮的品牌logo用,三條不同路徑讓它們不會整齊劃一地動 */
+@keyframes fly1 {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(90px, -50px) rotate(14deg); }
+  50% { transform: translate(150px, 20px) rotate(-10deg); }
+  75% { transform: translate(60px, 70px) rotate(10deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes fly2 {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-80px, 45px) rotate(-16deg); }
+  50% { transform: translate(-130px, -40px) rotate(10deg); }
+  75% { transform: translate(-45px, -80px) rotate(-10deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes fly3 {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  30% { transform: translate(60px, 60px) rotate(16deg); }
+  60% { transform: translate(-70px, 35px) rotate(-14deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+/* 飄浮的logo拆成兩層:外層(.hero-float-wrap)只管飛行路徑的transform,
+   內層(.hero-float-logo)只管hover放大的transform,兩層各自處理自己的transform,
+   不會互搶同一個屬性(之前兩個動畫一起作用在同一個元素上,滑鼠一碰就來回跳動) */
+.hero-float-wrap:hover {
+  animation-play-state: paused;
+  z-index: 20;
+}
+.hero-float-logo {
+  transition: transform 0.15s ease;
+  display: block;
+}
+.hero-float-wrap:hover .hero-float-logo {
+  transform: scale(1.25);
+}
+/* 品牌卡片進場時依序淡入+往上滑,不是整排一次跳出來 */
+@keyframes fade-up-card {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* 從v0搬過來的首頁樣式用:雙排跑馬燈logo + 卡片進場上浮,
+   只加動畫,不動:root的顏色變數(那些變數是shadcn元件全站共用的,
+   不能只為了首頁改掉,不然按鈕/下拉選單這些全部會跟著變色) */
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee-duration, 45s) linear infinite;
+}
+.marquee-track[data-reverse="true"] {
+  animation-direction: reverse;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise {
+  animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track, .rise {
+    animation: none;
+  }
+}

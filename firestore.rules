@@ -1,0 +1,64 @@
+// 這份檔案跟Firebase Console網頁上「Firestore > 規則」頁面的內容要保持一致。
+// 以後如果要改規則,建議兩邊同步改(或之後固定只用其中一邊,再用
+// `firebase deploy --only firestore:rules` / `firebase firestore:rules:get` 同步)。
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // brands(含子collection drinks):菜單資料,誰都能讀,前端完全不能寫,
+    // 只有 scripts/migrate-brands.ts 用Admin SDK寫入(不受這些規則限制)
+    match /brands/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // logs:個人飲料紀錄,只能讀寫自己uid的
+    match /logs/{logId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.auth.uid == request.resource.data.uid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
+    // favoriteBrands / favoriteDrinks:只能讀寫自己uid的收藏(只有create跟delete,沒有update,
+    // 因為程式碼裡沒有「修改」收藏這個動作,只有加入/取消)
+    match /favoriteBrands/{docId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+    match /favoriteDrinks/{docId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
+    // ratings:大家都能讀(平均分數要給所有人看),但只能寫自己uid那筆,目前沒有刪除評分的功能所以先擋掉
+    match /ratings/{docId} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == request.resource.data.uid;
+      allow delete: if false;
+    }
+
+    // comments:大家都能讀,登入才能新增,也能編輯/刪除自己的留言
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.auth.uid == request.resource.data.uid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
+    // userBadges:只能讀自己解鎖的勳章,前端完全不能寫,
+    // 只有Cloud Functions用Admin SDK寫入(不受這些規則限制)
+    match /userBadges/{badgeDocId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow write: if false;
+    }
+  }
+}

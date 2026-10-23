@@ -39,7 +39,9 @@ const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID as string; // 圓形pi
 export default function MapView() {
   const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
 
+  //抓使用者位置
   useEffect(() => {
+    //如果瀏覽器不支援定位功能
     if (!navigator.geolocation) {
       // navigator在SSR時不存在,這個檢查一定要放在只跑在瀏覽器端的useEffect裡才安全。
       // 這裡的setState是合理的初始化(不支援定位就直接退回預設值),不是真的在等外部系統回應,
@@ -73,13 +75,12 @@ export default function MapView() {
 function MapWithSidebar({ center }: { center: { lat: number; lng: number } }) {
   const [places, setPlaces] = useState<PlaceResult[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // searchCenter跟center(GPS定位)分開放:center給「回到我的位置」按鈕跟地圖初始位置用,
-  // 不會變;searchCenter才是真正拿去打API搜尋的中心點,可以被「搜尋這個區域」按鈕改掉。
-  // pendingCenter統一代表「畫面現在被移到哪裡了,但還沒真的拿去搜尋」——不管是使用者自己
-  // 拖曳地圖,還是點「回到我的位置」,兩種移動視角的方式都只是回報這個值,不會直接觸發搜尋,
-  // 要不要真的搜,由使用者自己點「搜尋這個區域」按鈕決定
+
+  // 搜尋店家的座標
   const [searchCenter, setSearchCenter] = useState(center);
+  // 畫面現在被移到哪裡了,但還沒真的拿去搜尋(用來決定要不要出現搜尋按鈕)
   const [pendingCenter, setPendingCenter] = useState<{ lat: number; lng: number } | null>(null);
+  //搜尋輸入匡
   const [searchQuery, setSearchQuery] = useState("");
   // 篩選條件:地圖pin跟左側清單共用同一份狀態,放在這裡(兩邊的共同父層)往下傳
   const [filters, setFilters] = useState<MapFilters>({ onlyOpen: false, onlyWithBrand: false });
@@ -109,7 +110,7 @@ function MapWithSidebar({ center }: { center: { lat: number; lng: number } }) {
           mapTypeControl={false}
           rotateControl={false}
           streetViewControl={false}
-          // 配色改用Console的雲端樣式(Map Styles)控制,有mapId時這個styles屬性會被Google直接忽略
+          fullscreenControl={false}
         >
           <PlacesLayer
             center={searchCenter}

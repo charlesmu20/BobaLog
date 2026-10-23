@@ -4,15 +4,19 @@ import { useBrand } from "@/lib/hooks/useBrand";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useFavorites } from "@/lib/hooks/useFavorites";
 import type { Drink } from "@/lib/brands";
-import BrandMenuHeader from "@/components/brand-menu-header";
-import BrandMenuSearch from "@/components/brand-menu-search";
-import BrandMenuTabs from "@/components/brand-menu-tabs";
-import BrandMenuList from "@/components/brand-menu-list";
+import BrandMenuHeader from "@/components/brand-menu/brand-menu-header";
+import SearchInput from "@/components/search-input";
+import BrandMenuTabs from "@/components/brand-menu/brand-menu-tabs";
+import BrandMenuList from "@/components/brand-menu/brand-menu-list";
 import LoginRequiredModal from "@/components/login-required-modal";
+import LoadingCard from "@/components/loading-card";
+import ErrorCard from "@/components/error-card";
+
+const MAIN_CLASS = "w-full min-w-0 max-w-6xl mx-auto px-2.5 py-6 min-h-screen min-[760px]:px-6";
 
 export default function BrandMenuPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const { brand, brandLoading } = useBrand(slug);
+  const { brand, brandLoading, brandError, retry } = useBrand(slug);
   const { user } = useCurrentUser();
   // 把 slug 跟登入狀態丟進去,拿到「查詢收藏狀態」跟「切換收藏」用的工具
   const { isBrandFavorited, isDrinkFavorited, toggleBrandFavorite, toggleDrinkFavorite } = useFavorites(user?.uid ?? null);
@@ -23,11 +27,29 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   if (brandLoading) {
-    return <div>載入中...</div>;
+    return (
+      <main className={MAIN_CLASS}>
+        <LoadingCard />
+      </main>
+    );
   }
 
+  // 抓取失敗(離線、網路問題等):可以重試
+  if (brandError) {
+    return (
+      <main className={MAIN_CLASS}>
+        <ErrorCard title="品牌資料載入失敗" onRetry={retry} />
+      </main>
+    );
+  }
+
+  // 查無此品牌(網址打錯、品牌下架):重試沒有意義,不給重試按鈕
   if (!brand) {
-    return <div>找不到這個品牌</div>;
+    return (
+      <main className={MAIN_CLASS}>
+        <ErrorCard title="找不到這個品牌" description="這個品牌可能已經下架或網址有誤" />
+      </main>
+    );
   }
   // 點擊「收藏品牌」按鈕時執行的函式
   const handleToggleBrandFavorite = () => {
@@ -81,7 +103,7 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
   };
 
   return (
-    <main className="w-full mx-auto px-6 py-6 min-h-screen" style={{ maxWidth: "1152px" }}>
+    <main className={MAIN_CLASS}>
 			{/* 登入提示彈窗,open控制要不要顯示,onClose是按X或背景時怎麼關掉 */}
       <LoginRequiredModal open={showLoginModal} onClose={() => setShowLoginModal(false)} />
 			{/* 品牌頂部資訊區(名稱、icon、收藏愛心) */}
@@ -91,7 +113,9 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
         onToggleFavorite={handleToggleBrandFavorite}
       />
 			{/* 搜尋框 */}
-      <BrandMenuSearch value={search} onChange={setSearch} />
+      <div className="mb-5">
+        <SearchInput variant="compact" value={search} onChange={setSearch} placeholder="搜尋這個品牌的飲料..." />
+      </div>
 			{/* 分類標籤列 */}
       <BrandMenuTabs categories={allCategories} onSelect={scrollToCategory} />
 			{/* 飲料清單本體 */}
