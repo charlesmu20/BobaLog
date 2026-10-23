@@ -8,7 +8,9 @@ export function useUserStats(uid: string | null) {
   const [stats, setStats] = useState<UserStats | null>(null);
 
   useEffect(() => {
+    // 登出時把上一位使用者的統計資料清掉,屬於跟外部資料同步的合理情境
     if (!uid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStats(null);
       return;
     }

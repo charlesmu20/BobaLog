@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cloud Functions是獨立的子專案(自己的package.json/tsconfig.json),
+    // 用firebase deploy部署,不是Next.js app的一部分,不用跟著這裡的規則檢查
+    "functions/**",
   ]),
 ]);
 

@@ -11,7 +11,10 @@ export function useUserBadges(uid: string | null) {
 
   useEffect(() => {
     // 沒登入就直接清空,不用查資料庫
+    // (這裡是「登出時把上一位使用者的勳章資料清掉」,屬於跟外部系統同步的合理情境,
+    // 不是可以挪到render階段算的衍生狀態,所以不適用set-state-in-effect這條規則)
     if (!uid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnlockedBadges(new Map());
       setBadgesLoading(false);
       return;

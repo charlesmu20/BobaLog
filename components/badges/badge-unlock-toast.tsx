@@ -19,9 +19,10 @@ export default function BadgeUnlockToast() {
   const seenRef = useRef<Set<string> | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  // 換人時seenRef要重置
+  // 換人時seenRef要重置,連帶把上一位使用者還沒消失的toast也清掉
   useEffect(() => {
     seenRef.current = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToasts([]);
   }, [user?.uid]);
 
@@ -43,6 +44,9 @@ export default function BadgeUnlockToast() {
     seenRef.current = new Set(unlockedBadges.keys());
 
     if (newlyUnlocked.length > 0) {
+      // 把Firestore監聽到的「新解鎖勳章」轉成toast佇列,屬於跟外部系統同步,
+      // 不是能挪到render階段算的衍生狀態
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setToasts((prev) => [
         ...prev,
         ...newlyUnlocked.map((badgeId) => ({ id: `${badgeId}-${Date.now()}`, badgeId })),
