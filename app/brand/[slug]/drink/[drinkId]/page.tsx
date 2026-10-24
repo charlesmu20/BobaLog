@@ -1,16 +1,20 @@
 "use client";
 import { use, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, Heart } from "lucide-react";
 import { useBrand } from "@/lib/hooks/useBrand";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
+import { useFavorites } from "@/lib/hooks/useFavorites";
 import { useRatings } from "@/lib/hooks/useRating";
 import { useComments } from "@/lib/hooks/useComments";
+import { useSuccessToast } from "@/lib/hooks/useSuccessToast";
 import RatingStars, { StaticStars } from "@/components/drink/rating-stars";
 import CommentSection from "@/components/drink/comment-section";
 import LoginRequiredModal from "@/components/login-required-modal";
 import LoadingCard from "@/components/loading-card";
 import ErrorCard from "@/components/error-card";
+import SuccessToast from "@/components/ui/success-toast";
 
 const MAIN_CLASS = "w-full min-w-0 max-w-6xl mx-auto px-2.5 py-6 min-h-screen min-[760px]:px-6";
 
@@ -25,6 +29,8 @@ export default function DrinkCommentPage({
   // 評分資料跟登入狀態要放在最上面、兩個提早return之前,不然畫面切換時hook呼叫數量會對不上
   const { average, count, myRating, submitRating } = useRatings(slug, drinkId, user?.uid ?? null);
   const { comments, submitComment } = useComments(slug, drinkId, user?.uid ?? null);
+  const { isDrinkFavorited, toggleDrinkFavorite } = useFavorites(user?.uid ?? null);
+  const { toast, showToast } = useSuccessToast();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   if (brandLoading) {
@@ -79,6 +85,18 @@ export default function DrinkCommentPage({
     submitComment(user?.displayName ?? "匿名", text);
   };
 
+  // 點收藏愛心時執行的函式,跟菜單頁同一套邏輯:沒登入就彈登入視窗;
+  // 加入/取消收藏都跳提示,文字不同
+  const handleToggleFavorite = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    const wasFavorited = isDrinkFavorited(slug, drinkId);
+    toggleDrinkFavorite(slug, drinkId);
+    showToast(wasFavorited ? "已取消收藏" : "已加入收藏");
+  };
+
   return (
     <main className={MAIN_CLASS}>
       {/* 登入提示彈窗,沒登入點星星或送留言時會打開 */}
@@ -105,14 +123,25 @@ export default function DrinkCommentPage({
         <div className="grid gap-4 md:grid-cols-[1fr_15rem] md:gap-5">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <img
-                src={brand.icon}
-                alt={brand.name}
-                className="w-10 h-10 rounded-md border-2 border-[#3C332B] object-cover"
-              />
+              <div className="relative w-10 h-10 shrink-0 overflow-hidden rounded-md border-2 border-[#3C332B]">
+                <Image src={brand.icon} alt={brand.name} fill sizes="40px" className="object-cover" />
+              </div>
               <span className="text-sm font-bold text-[#6B5D4F]">{brand.name}</span>
             </div>
-            <h1 className="text-2xl font-black leading-tight text-[#3C332B]">{drink.name}</h1>
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="text-2xl font-black leading-tight text-[#3C332B]">{drink.name}</h1>
+              <button
+                onClick={handleToggleFavorite}
+                aria-label="收藏這杯飲料"
+                className="w-9 h-9 rounded-full bg-[#F6F2EA] border-[3px] border-[#3C332B] flex items-center justify-center flex-shrink-0 cursor-pointer transition-transform hover:-translate-y-0.5"
+              >
+                <Heart
+                  className="w-4 h-4"
+                  style={{ color: "#3C332B" }}
+                  fill={isDrinkFavorited(slug, drinkId) ? "#A6C285" : "none"}
+                />
+              </button>
+            </div>
             <ul aria-label="價格" className="flex flex-wrap gap-2">
               {sameSizePrice ? (
                 <li className="inline-flex items-baseline gap-1.5 rounded-full border-2 border-[#3C332B] bg-white px-3 py-1 text-sm font-bold text-[#3C332B]">
@@ -171,6 +200,8 @@ export default function DrinkCommentPage({
           onRequireLogin={() => setShowLoginModal(true)}
         />
       </section>
+
+      <SuccessToast message={toast} />
     </main>
   );
 }

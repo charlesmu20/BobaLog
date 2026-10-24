@@ -5,7 +5,7 @@ export default function Footer() {
     <footer className="bg-[#F6EFE4] border-t-[3px] border-[#3C332B]">
       <div className="max-w-6xl mx-auto flex flex-col items-center gap-4 px-2.5 py-6 text-center min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between min-[760px]:gap-0 min-[760px]:px-6 min-[760px]:text-left">
         <div>
-          <Image src="/bobalog.png" alt="BobaLog" width={90} height={40} className="mx-auto min-[760px]:mx-0" />
+          <Image src="/bobalog.png" alt="BobaLog" width={90} height={40} className="mx-auto h-[40px] w-[90px] min-[760px]:mx-0" />
           <p className="mt-1 text-xs" style={{ color: "#6B5D4F" }}>
             記錄每一杯喜歡的手搖飲
           </p>

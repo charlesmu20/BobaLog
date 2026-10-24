@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import type { SearchBrand, SearchDrink } from "@/lib/hooks/useSearchIndex";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
@@ -54,7 +55,9 @@ export default function SearchDropdown({
               href={`/brand/${b.slug}`}
               className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-[#A6C285] hover:text-[#3C332B] group"
             >
-              <img src={b.icon} alt={b.name} className="w-10 h-10 rounded-full object-cover border-2 border-[#3C332B] shrink-0" />
+              <div className="relative w-10 h-10 shrink-0 overflow-hidden rounded-full border-2 border-[#3C332B]">
+                <Image src={b.icon} alt={b.name} fill sizes="40px" className="object-cover" />
+              </div>
               <span className="text-base font-bold text-[#3C332B] flex-1 truncate">{highlightMatch(b.name, term)}</span>
               <ArrowUpRight className="w-5 h-5 text-[#6B5D4F] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
             </Link>
@@ -72,7 +75,9 @@ export default function SearchDropdown({
               href={`/brand/${d.brandSlug}/drink/${d.id}`}
               className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-[#A6C285] hover:text-[#3C332B] group"
             >
-              <img src={d.brandIcon} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-[#3C332B] shrink-0" />
+              <div className="relative w-10 h-10 shrink-0 overflow-hidden rounded-full border-2 border-[#3C332B]">
+                <Image src={d.brandIcon} alt="" fill sizes="40px" className="object-cover" />
+              </div>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-base font-bold text-[#3C332B]">{highlightMatch(d.name, term)}</span>
                 <span className="block truncate text-sm text-[#6B5D4F]">{d.brandName}</span>

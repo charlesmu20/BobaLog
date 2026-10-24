@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import type { BrandSummary } from "@/lib/brands";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
@@ -25,11 +26,15 @@ export default function BrandCardGrid({ brands }: { brands: BrandSummary[] }) {
               className={`${STICKER_CARD_BASE} group flex h-full flex-col overflow-hidden shadow-[5px_5px_0_0_#3C332B] transition-all duration-200 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[9px_9px_0_0_#A6C285] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_0_#3C332B]`}
             >
               <div className="flex flex-1 flex-col items-center gap-2.5 px-3 pb-4 pt-6">
-                <img
-                  src={brand.icon}
-                  alt={brand.name}
-                  className="h-16 w-16 rounded-full border-[3px] border-[#3C332B] object-cover transition-transform duration-300 group-hover:rotate-[8deg] group-hover:scale-110"
-                />
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border-[3px] border-[#3C332B]">
+                  <Image
+                    src={brand.icon}
+                    alt={brand.name}
+                    fill
+                    sizes="64px"
+                    className="object-cover transition-transform duration-300 group-hover:rotate-[8deg] group-hover:scale-110"
+                  />
+                </div>
                 <div className="text-center">
                   <div className="text-sm font-black leading-tight text-[#3C332B]">{brand.name}</div>
                   <div className="mt-0.5 text-xs font-medium text-[#6B5D4F]">{brand.drinkCount} 款飲品</div>

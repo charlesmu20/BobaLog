@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { Heart } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import type { Drink } from "@/lib/brands";
+import type { DrinkRatingSummary } from "@/lib/hooks/useRating";
 
 export default function BrandMenuList({
   brandSlug,
@@ -10,6 +11,7 @@ export default function BrandMenuList({
   onToggleFavoriteDrink,
   registerSectionRef,
   highlightedCategory,
+  ratingsByDrink,
 }: {
   brandSlug: string;
   grouped: Record<string, Drink[]>;
@@ -17,6 +19,8 @@ export default function BrandMenuList({
   onToggleFavoriteDrink: (drinkId: string) => void;
   registerSectionRef: (category: string, el: HTMLDivElement | null) => void;
   highlightedCategory: string | null;
+  // 只有被評分過的飲料才會出現在這個map裡,沒評分過的drink.id查不到就不顯示角標
+  ratingsByDrink: Record<string, DrinkRatingSummary>;
 }) {
   const entries = Object.entries(grouped);
 
@@ -41,6 +45,7 @@ export default function BrandMenuList({
             {drinks.map((drink) => {
               const sameSizePrice = drink.prices.M === drink.prices.L;
               const favorited = drink.id ? isDrinkFavorited(drink.id) : false;
+              const rating = drink.id ? ratingsByDrink[drink.id] : undefined;
 
               return (
                 <div
@@ -72,20 +77,34 @@ export default function BrandMenuList({
                       />
                     </button>
                   </div>
-                  <div className="relative flex gap-1.5 mt-2 pointer-events-none">
-                    {sameSizePrice ? (
-                      <span className="text-xs font-medium text-[#3C332B] bg-[#F6F2EA] border border-[#3C332B] px-2 py-0.5 rounded">
-                        ${drink.prices.M}
+                  {/* gap-x/gap-y分開寫:水平間距(M跟L徽章之間)維持原本緊湊的1.5,
+                      垂直間距(星星被擠到下一行時,跟上面價格徽章的距離)加大一點,不要太貼 */}
+                  <div className="relative flex flex-wrap items-center justify-between gap-x-1.5 gap-y-2 mt-2 pointer-events-none">
+                    {/* shrink-0+whitespace-nowrap:原本評分星星擠進來時,這兩個價格徽章會被flex擠壓到
+                        低於文字原本寬度,導致「M」「$50」中間被迫分行。鎖住不讓它縮小、文字也不換行,
+                        真的放不下時改讓整排(含星星)一起wrap到下一行,而不是框框內部斷字 */}
+                    <div className="flex shrink-0 gap-1.5">
+                      {sameSizePrice ? (
+                        <span className="whitespace-nowrap text-xs font-medium text-[#3C332B] bg-[#F6F2EA] border border-[#3C332B] px-2 py-0.5 rounded">
+                          ${drink.prices.M}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="whitespace-nowrap text-xs font-medium text-[#3C332B] bg-[#F6F2EA] border border-[#3C332B] px-2 py-0.5 rounded">
+                            M ${drink.prices.M}
+                          </span>
+                          <span className="whitespace-nowrap text-xs font-medium text-[#3C332B] bg-[#F6F2EA] border border-[#3C332B] px-2 py-0.5 rounded">
+                            L ${drink.prices.L}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    {/* 只有被評分過的飲料(rating存在且count>0)才顯示,右下角一顆實心星星+平均分數 */}
+                    {rating && rating.count > 0 && (
+                      <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-[#3C332B]">
+                        <Star className="w-3 h-3" style={{ color: "#C9732F" }} fill="#C9732F" />
+                        {rating.average.toFixed(1)}
                       </span>
-                    ) : (
-                      <>
-                        <span className="text-xs font-medium text-[#3C332B] bg-[#F6F2EA] border border-[#3C332B] px-2 py-0.5 rounded">
-                          M ${drink.prices.M}
-                        </span>
-                        <span className="text-xs font-medium text-[#3C332B] bg-[#F6F2EA] border border-[#3C332B] px-2 py-0.5 rounded">
-                          L ${drink.prices.L}
-                        </span>
-                      </>
                     )}
                   </div>
                 </div>

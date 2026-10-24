@@ -1,38 +1,38 @@
 import BrandIcon from "@/components/brand-icon";
-import { Crown } from "lucide-react";
 import { getBrandIcon } from "@/lib/history-utils";
+import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import type { Brand } from "@/lib/brands";
-
-const CROWN_COLORS = ["text-amber-500", "text-gray-400", "text-amber-700"];
+import { RANK_STYLES } from "@/lib/rank-styles";
 
 export default function FavoriteBrands({
   list,
-  selectedMonth,
   brands,
 }: {
   list: { brand: string; count: number }[];
-  selectedMonth: string;
   brands: Brand[];
 }) {
   const slots = [0, 1, 2].map((i) => list[i] ?? null);
 
   return (
-    <div className="bg-[#E3CBB8]/50 rounded-xl p-3.5 border border-[#E3D8C6]/60 shadow-sm hover:scale-[1.01] transition-transform duration-150">
-      <div className="text-sm text-[#7A4F38] mb-3">當月最愛品牌</div>
+    <div className={`${STICKER_CARD_BASE} p-3.5 shadow-[3px_3px_0_0_#3C332B] transition-all hover:shadow-[2px_2px_0_0_#3C332B] hover:translate-x-px hover:translate-y-px`}>
+      <div className="text-sm text-[#8A7A63] mb-3">當月最愛品牌</div>
       <div className="flex flex-col">
         {slots.map((b, i) => (
           <div key={i} className="flex items-center gap-3 py-2">
-            <div className="w-5 text-base font-medium text-[#7A4F38] text-center">
+            <div
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-[#3C332B] text-xs font-bold ${
+                b ? RANK_STYLES[i + 1] : "bg-[#F6F2EA] text-[#9A8B7A]"
+              }`}
+            >
               {i + 1}
             </div>
             {b ? (
               <>
-                <Crown className={`w-5 h-5 ${CROWN_COLORS[i]}`} />
                 <BrandIcon name={b.brand} icon={getBrandIcon(b.brand, brands)} size="w-8 h-8" />
                 <div className="text-base flex-1 text-[#4A3424]">{b.brand}</div>
                 <div>
-                  <span className="text-lg font-bold text-[#4A3424]">{b.count}</span>{" "}
-                  <span className="text-base text-[#7A4F38]">杯</span>
+                  <span className="text-lg font-bold text-[#3C332B]">{b.count}</span>{" "}
+                  <span className="text-base text-[#8A7A63]">杯</span>
                 </div>
               </>
             ) : (

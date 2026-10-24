@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useMap, MapControl, ControlPosition } from "@vis.gl/react-google-maps";
 import { Search } from "lucide-react";
-import { distanceMeters } from "@/lib/distance";
+import { distanceMeters } from "@/lib/map/distance";
 
 const DRAG_THRESHOLD_METERS = 400;
 
@@ -44,7 +44,8 @@ export default function SearchAreaButton({
     <MapControl position={ControlPosition.TOP_CENTER}>
       <button
         onClick={() => onSearchHere(pendingCenter)}
-        className="mt-3 flex items-center gap-1.5 bg-white rounded-full shadow-md px-3 py-1.5 text-xs font-medium text-[#4A3424] hover:bg-[#F6EFE4] transition-colors"
+        // 改成粗黑邊+硬陰影的貼紙按鈕風格,原本是白底圓角+模糊陰影,跟全站其他按鈕對不起來
+        className="mt-3 flex cursor-pointer items-center gap-1.5 rounded-full border-[3px] border-[#3C332B] bg-[#F6F2EA] px-3 py-1.5 text-xs font-medium text-[#4A3424] shadow-[3px_3px_0_0_#3C332B] transition-all hover:bg-[#F6EFE4] hover:shadow-[2px_2px_0_0_#3C332B] hover:translate-x-px hover:translate-y-px"
       >
         <Search className="w-3.5 h-3.5" />
         搜尋這個區域

@@ -44,3 +44,34 @@ export function useRatings(brandSlug: string, drinkId: string, uid: string | nul
 
   return { average, count: ratings.length, myRating, submitRating };
 }
+
+export type DrinkRatingSummary = { average: number; count: number };
+
+// 菜單頁要同時顯示「這個品牌底下每一杯飲料」的評分,如果每張卡片都各自呼叫一次
+// useRatings,等於同時開幾十個onSnapshot監聽。改成只查一次「這個品牌的所有評分」,
+// 在前端依drinkId分組算平均,一個監聽就夠
+export function useBrandRatings(brandSlug: string) {
+  const [ratingsByDrink, setRatingsByDrink] = useState<Record<string, DrinkRatingSummary>>({});
+
+  useEffect(() => {
+    const q = query(collection(db, "ratings"), where("brandSlug", "==", brandSlug));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const sums: Record<string, { total: number; count: number }> = {};
+      snapshot.docs.forEach((d) => {
+        const data = d.data();
+        const drinkId = data.drinkId as string;
+        if (!sums[drinkId]) sums[drinkId] = { total: 0, count: 0 };
+        sums[drinkId].total += data.rating;
+        sums[drinkId].count += 1;
+      });
+      const result: Record<string, DrinkRatingSummary> = {};
+      for (const [drinkId, { total, count }] of Object.entries(sums)) {
+        result[drinkId] = { average: total / count, count };
+      }
+      setRatingsByDrink(result);
+    });
+    return () => unsubscribe();
+  }, [brandSlug]);
+
+  return ratingsByDrink;
+}

@@ -2,7 +2,6 @@ import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import { STICKER_BUTTON_BASE } from "@/lib/sticker-button";
 
 // 置中的錯誤卡片+重試按鈕,搭配各頁面自己的資料抓取失敗狀態使用,
-// 避免像之前useBrandSummaries那樣抓取失敗就卡死在loading畫面出不來
 export default function ErrorCard({
   title = "資料載入失敗",
   description = "請檢查網路連線後再試一次",

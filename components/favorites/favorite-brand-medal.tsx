@@ -4,13 +4,7 @@ import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import BrandIcon from "@/components/brand-icon";
-
-// 前三名用主題強調色,第4名以後統一米白,不然顏色會太花
-const RANK_STYLES: Record<number, string> = {
-  1: "bg-[#A6C285] text-[#2E4019]",
-  2: "bg-[#C9732F] text-white",
-  3: "bg-[#E3D8C6] text-[#4A3424]",
-};
+import { RANK_STYLES } from "@/lib/rank-styles";
 
 export default function FavoriteBrandMedal({
   id,
@@ -43,15 +37,22 @@ export default function FavoriteBrandMedal({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={`flex w-[110px] touch-manipulation select-none flex-col items-center ${
+      // 注意:這個div不能加transition-transform/transition-all這種會動到transform的class!
+      // dnd-kit自己用inline style控制transform+transition(拖曳中transition是null讓位移即時跟手,
+      // 放開後才給一個動畫值做歸位動畫)。如果這裡的class也想對transform做transition,
+      // 瀏覽器會把dnd-kit每一幀更新的transform也套用那個動畫時間,拖曳起來就會變得延遲、黏黏的。
+      // hover的放大/陰影效果都改放在下面內層的圓環/連結上,不會跟這裡衝突。
+      className={`group flex w-[110px] touch-manipulation select-none flex-col items-center ${
         isEditMode ? "cursor-grab active:cursor-grabbing" : ""
       } ${isDragging ? "z-20 -rotate-2 scale-[1.06]" : ""}`}
     >
       <div className="relative mb-2.5 h-[92px] w-[92px]">
-        {/* 外圈裝飾圓環,加上底色讓它像有個「底盤」撐著,不是只有一條線 */}
+        {/* 外圈裝飾圓環,邊框改成跟全站卡片/按鈕一致的粗黑邊(border-[3px] #3C332B),
+            而不是原本那條細細的半透明橘色線,視覺上才跟其他sticker風格的元件統一。
+            hover時只有投影浮起,邊框顏色不跟著變(跟其他元件的hover行為一致) */}
         <div
-          className={`absolute inset-0 rounded-full border-2 border-[#C9732F]/35 bg-[#F6EFE4] transition-shadow duration-150 ${
-            isDragging ? "shadow-[6px_8px_0_0_#3C332B]" : ""
+          className={`absolute inset-0 rounded-full border-[3px] border-[#3C332B] bg-[#F6EFE4] transition-all duration-150 ${
+            isDragging ? "shadow-[6px_8px_0_0_#3C332B]" : "group-hover:shadow-[3px_4px_0_0_#3C332B]"
           }`}
         />
 
@@ -65,7 +66,7 @@ export default function FavoriteBrandMedal({
           <Link
             href={`/brand/${slug}`}
             draggable={false}
-            className="absolute inset-[6px] block overflow-hidden rounded-full border-2 border-white shadow-[0_6px_14px_-4px_rgba(201,115,47,0.5)]"
+            className="absolute inset-[6px] block cursor-pointer overflow-hidden rounded-full border-2 border-white shadow-[0_6px_14px_-4px_rgba(201,115,47,0.5)] transition-transform duration-200 group-hover:scale-105"
           >
             <BrandIcon name={name} icon={icon} size="w-full h-full" />
           </Link>
@@ -85,7 +86,7 @@ export default function FavoriteBrandMedal({
           onClick={onToggleFavorite}
           onPointerDown={(e) => e.stopPropagation()}
           aria-label="取消收藏"
-          className="absolute -top-1 -right-1 flex h-[32px] w-[32px] items-center justify-center rounded-full border border-[#E3D8C6] bg-white"
+          className="absolute -top-1 -right-1 flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-full border border-[#E3D8C6] bg-white transition-transform duration-150 hover:scale-110 active:scale-95"
         >
           <Heart className="h-4 w-4" style={{ color: "#C9732F" }} fill="#C9732F" />
         </button>
@@ -94,7 +95,11 @@ export default function FavoriteBrandMedal({
       {isEditMode ? (
         <span className="text-center text-sm font-medium text-[#4A3424]">{name}</span>
       ) : (
-        <Link href={`/brand/${slug}`} draggable={false} className="text-center text-sm font-medium text-[#4A3424]">
+        <Link
+          href={`/brand/${slug}`}
+          draggable={false}
+          className="cursor-pointer text-center text-sm font-medium text-[#4A3424] transition-colors group-hover:text-[#C9732F]"
+        >
           {name}
         </Link>
       )}

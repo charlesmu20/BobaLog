@@ -78,7 +78,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col min-h-screen items-center justify-center">
-      <Image src="/bobalog-logo.png" alt="BobaLog" width={110} height={32} priority className="mb-7" />
+      {/* 原本指到 /bobalog-logo.png,但 public/ 裡根本沒有這個檔案(只有 bobalog.png),
+          等於登入頁的logo其實是壞圖——順便修掉,連同下面同一輪在修的 aspect ratio / priority 問題 */}
+      <Image src="/bobalog.png" alt="BobaLog" width={110} height={49} loading="eager" className="mb-7 h-[49px] w-[110px]" />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>{isSignUp ? "註冊帳號" : "登入帳號"}</CardTitle>

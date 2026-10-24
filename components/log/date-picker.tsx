@@ -1,16 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { STICKER_CARD_BASE } from "@/lib/sticker-card";
+import { toDateString } from "@/lib/history-utils";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
-
-function toDateString(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 function formatDisplay(dateStr: string) {
   const [y, m, d] = dateStr.split("-");
@@ -64,22 +59,27 @@ export default function DatePicker({
 
   return (
     <div className="relative" ref={ref}>
+      {/* 跟品牌/飲料輸入框同一套粗邊框+硬陰影樣式,整張表單才會統一 */}
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="border border-[#E3D8C6] rounded-lg px-3 py-2 w-full text-left text-[#4A3424] cursor-pointer"
+        className="flex w-full items-center gap-2.5 rounded-2xl border-[3px] border-[#3C332B] bg-[#F6F2EA] px-4 py-3 text-left text-sm font-medium text-[#3C332B] shadow-[4px_4px_0_0_#3C332B] transition-shadow cursor-pointer hover:shadow-[5px_5px_0_0_#3C332B]"
       >
+        <CalendarDays className="h-4 w-4 shrink-0 text-[#6B5D4F]" aria-hidden="true" />
         {formatDisplay(value)}
       </button>
 
       {open && (
-        <div className="absolute left-0 mt-2 bg-white border border-[#E3D8C6] rounded-xl shadow-lg p-3 z-50 w-64">
+        <div
+          className={`absolute left-0 mt-2 z-50 w-64 p-3 ${STICKER_CARD_BASE} shadow-[4px_4px_0_0_#3C332B]`}
+          style={{ transformOrigin: "top left", animation: "infowindow-pop 0.15s ease-out" }}
+        >
           <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={() => setViewDate(new Date(year, month - 1, 1))} className="text-[#6B5338] cursor-pointer p-1">
+            <button type="button" onClick={() => setViewDate(new Date(year, month - 1, 1))} className="text-[#8A7A63] cursor-pointer p-1 hover:text-[#3C332B]">
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm font-medium text-[#473A28]">{year}年{month + 1}月</span>
-            <button type="button" onClick={() => setViewDate(new Date(year, month + 1, 1))} className="text-[#6B5338] cursor-pointer p-1">
+            <span className="text-sm font-medium text-[#3C332B]">{year}年{month + 1}月</span>
+            <button type="button" onClick={() => setViewDate(new Date(year, month + 1, 1))} className="text-[#8A7A63] cursor-pointer p-1 hover:text-[#3C332B]">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

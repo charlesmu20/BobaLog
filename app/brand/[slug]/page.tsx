@@ -3,6 +3,7 @@ import { use, useState, useRef } from "react";
 import { useBrand } from "@/lib/hooks/useBrand";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useFavorites } from "@/lib/hooks/useFavorites";
+import { useBrandRatings } from "@/lib/hooks/useRating";
 import type { Drink } from "@/lib/brands";
 import BrandMenuHeader from "@/components/brand-menu/brand-menu-header";
 import SearchInput from "@/components/search-input";
@@ -11,6 +12,8 @@ import BrandMenuList from "@/components/brand-menu/brand-menu-list";
 import LoginRequiredModal from "@/components/login-required-modal";
 import LoadingCard from "@/components/loading-card";
 import ErrorCard from "@/components/error-card";
+import SuccessToast from "@/components/ui/success-toast";
+import { useSuccessToast } from "@/lib/hooks/useSuccessToast";
 
 const MAIN_CLASS = "w-full min-w-0 max-w-6xl mx-auto px-2.5 py-6 min-h-screen min-[760px]:px-6";
 
@@ -20,11 +23,13 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
   const { user } = useCurrentUser();
   // 把 slug 跟登入狀態丟進去,拿到「查詢收藏狀態」跟「切換收藏」用的工具
   const { isBrandFavorited, isDrinkFavorited, toggleBrandFavorite, toggleDrinkFavorite } = useFavorites(user?.uid ?? null);
+  const ratingsByDrink = useBrandRatings(slug);
 
   const [search, setSearch] = useState("");
   const [highlightedCategory, setHighlightedCategory] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const { toast, showToast } = useSuccessToast();
 
   if (brandLoading) {
     return (
@@ -51,21 +56,26 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
       </main>
     );
   }
-  // 點擊「收藏品牌」按鈕時執行的函式
+  // 點擊「收藏品牌」按鈕時執行的函式。加入/取消收藏都要跳不同的提示文字,
+  // 所以要在實際呼叫toggle之前先記下目前的收藏狀態
   const handleToggleBrandFavorite = () => {
     if (!user) {
       setShowLoginModal(true);
       return;
     }
+    const wasFavorited = isBrandFavorited(slug);
     toggleBrandFavorite(slug);
+    showToast(wasFavorited ? "已取消收藏" : "已加入收藏");
   };
-  // 點擊「收藏飲料」按鈕時執行的函式
+  // 點擊「收藏飲料」按鈕時執行的函式,同樣加入/取消都跳提示
   const handleToggleDrinkFavorite = (drinkId: string) => {
     if (!user) {
       setShowLoginModal(true);
       return;
     }
+    const wasFavorited = isDrinkFavorited(slug, drinkId);
     toggleDrinkFavorite(slug, drinkId);
+    showToast(wasFavorited ? "已取消收藏" : "已加入收藏");
   };
   // 把一整排飲料,按照 category(分類)欄位分組,變成 { "找茶": [...], "奶茶": [...] } 這種形狀
   const groupByCategory = (drinks: Drink[]) => {
@@ -124,11 +134,14 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
         grouped={groupedFiltered}
         isDrinkFavorited={(drinkId) => isDrinkFavorited(slug, drinkId)}
         onToggleFavoriteDrink={handleToggleDrinkFavorite}
+        ratingsByDrink={ratingsByDrink}
         registerSectionRef={(category, el) => {
           sectionRefs.current[category] = el;
         }}
         highlightedCategory={highlightedCategory}
       />
+
+      <SuccessToast message={toast} />
     </main>
   );
 }

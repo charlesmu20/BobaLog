@@ -1,6 +1,6 @@
 "use client";
 
-import MapView from "@/components/map-view";
+import MapView from "@/components/map/map-view";
 
 export default function MapPage() {
   return (

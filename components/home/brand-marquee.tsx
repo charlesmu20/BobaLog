@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { BrandSummary } from "@/lib/brands";
 
 // 雙排跑馬燈,品牌logo一排往左一排往右連續滾動(從v0生成的樣式搬過來),
@@ -29,9 +30,9 @@ function MarqueeRow({
                 href={`/brand/${brand.slug}`}
                 title={brand.name}
                 tabIndex={copy === 1 ? -1 : undefined}
-                className="block h-14 w-14 md:h-16 md:w-16 shrink-0 overflow-hidden rounded-full border-2 border-[#F6F2EA] bg-[#F6F2EA] transition-transform hover:-translate-y-1 hover:scale-110"
+                className="relative block h-14 w-14 md:h-16 md:w-16 shrink-0 overflow-hidden rounded-full border-2 border-[#F6F2EA] bg-[#F6F2EA] transition-transform hover:-translate-y-1 hover:scale-110"
               >
-                <img src={brand.icon} alt={copy === 0 ? brand.name : ""} className="h-full w-full object-cover" />
+                <Image src={brand.icon} alt={copy === 0 ? brand.name : ""} fill sizes="64px" className="object-cover" />
               </Link>
             ))}
           </div>

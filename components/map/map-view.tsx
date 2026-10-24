@@ -27,7 +27,8 @@ import { useState, useEffect } from "react";
 import { APIProvider, Map } from "@vis.gl/react-google-maps";
 import { Loader2 } from "lucide-react";
 import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
-import type { PlaceResult, MapFilters } from "@/lib/mapTypes";
+import type { PlaceResult, MapFilters } from "@/lib/map/mapTypes";
+import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import PlacesLayer from "@/components/map/places-layer";
 import MapSidebar from "@/components/map/map-sidebar";
 import MyLocationControl from "@/components/map/my-location-control";
@@ -56,9 +57,13 @@ export default function MapView() {
     );
   }, []);
 
-  // 外層這張卡片負責圓角+裁邊,loading跟地圖本體都包在裡面,邊界才會一致
+  // 外層這張卡片負責圓角+裁邊,loading跟地圖本體都包在裡面,邊界才會一致。
+  // 邊框/陰影改用全站共用的STICKER_CARD_BASE(粗黑邊+硬陰影),原本是細細的米色邊框+
+  // 模糊陰影,跟收藏頁、首頁這些地方的貼紙卡風格對不起來
+  // 手機寬度縮一點高度(520px),760px以上才用原本的600px,
+  // 不然清單疊到地圖上面後,整塊區域在小螢幕上會佔掉太多畫面高度
   return (
-    <div className="h-[600px] w-full rounded-2xl overflow-hidden border border-[#E3D8C6] shadow-sm bg-white">
+    <div className={`${STICKER_CARD_BASE} h-[520px] w-full overflow-hidden shadow-[6px_6px_0_0_#3C332B] min-[760px]:h-[600px]`}>
       {!center ? (
         <div className="flex h-full items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -87,19 +92,35 @@ function MapWithSidebar({ center }: { center: { lat: number; lng: number } }) {
   // 不等brandsLoading也沒關係,brands晚一點從Firestore抓完,PlacesLayer裡的useMemo會自動重算一次品牌對應
   const { brands } = useBrandSummaries();
 
+  // 760px以下「店家清單」那一塊預設收起來,點MapSidebar裡的藥丸按鈕才展開
+  // (搜尋列不受影響,永遠顯示);760px以上這個狀態完全不影響畫面,清單永遠展開
+  const [isListOpen, setIsListOpen] = useState(false);
+
+  // 不管是點地圖上的pin、還是點清單裡的項目選中一家店,手機版都順便把清單收回去——
+  // 不然選完店家清單還蓋在地圖上面,看不到剛選的那個pin跑到哪裡、也看不到詳情彈窗
+  function handleSelect(id: string) {
+    setSelectedId(id);
+    setIsListOpen(false);
+  }
+
+  // 760px以下清單疊在地圖上面(flex-col),760px以上才左右並排(flex-row)——
+  // 原本清單固定220px寬、不管螢幕多窄都硬擠在地圖旁邊,手機寬度扣掉220px地圖只剩
+  // 一百多px,完全不能用
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 min-[760px]:flex-row">
       <MapSidebar
         places={places}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        onSelect={handleSelect}
         searchQuery={searchQuery}
         onSearch={setSearchQuery}
         filters={filters}
         onFiltersChange={setFilters}
+        isOpen={isListOpen}
+        onToggle={() => setIsListOpen((v) => !v)}
       />
 
-      <div className="flex-1 relative">
+      <div className="flex-1 min-h-0">
         <Map
           mapId={MAP_ID}
           defaultCenter={center}
@@ -119,7 +140,7 @@ function MapWithSidebar({ center }: { center: { lat: number; lng: number } }) {
             filters={filters}
             onResults={setPlaces}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={handleSelect}
           />
           <MyLocationControl center={center} onRecenter={() => setPendingCenter(center)} />
           <SearchAreaButton

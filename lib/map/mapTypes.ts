@@ -1,4 +1,4 @@
-import type { matchBrand } from "@/lib/matchBrand";
+import type { matchBrand } from "@/lib/map/matchBrand";
 
 // Google搜到的原始店家資料,還沒比對品牌
 export type RawPlace = {

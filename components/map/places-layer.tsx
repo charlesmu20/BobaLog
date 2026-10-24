@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Navigation } from "lucide-react";
 import {
   AdvancedMarker,
@@ -10,11 +11,11 @@ import {
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
-import { matchBrand } from "@/lib/matchBrand";
-import { distanceMeters } from "@/lib/distance";
-import { isCurrentlyOpen, getTodayHoursLabel } from "@/lib/openingHours";
+import { matchBrand } from "@/lib/map/matchBrand";
+import { distanceMeters } from "@/lib/map/distance";
+import { isCurrentlyOpen, getTodayHoursLabel } from "@/lib/map/openingHours";
 import type { BrandSummary } from "@/lib/brands";
-import type { RawPlace, PlaceResult, MapFilters } from "@/lib/mapTypes";
+import type { RawPlace, PlaceResult, MapFilters } from "@/lib/map/mapTypes";
 import OpenStatusBadge from "@/components/map/open-status-badge";
 
 const SEARCH_RADIUS_METERS = 1500;
@@ -208,14 +209,16 @@ function PlaceMarker({
   return (
     <>
       <AdvancedMarker ref={markerRef} position={place.location} onClick={() => onSelect(place.id)}>
+        {/* pin邊框改用全站統一的深棕色粗邊(跟badge/名次牌同一套),原本是純白邊框,
+            跟其他頁面小圓形元件(例如收藏頁的愛心按鈕、名次牌)的邊框語言對不起來 */}
         <div
-          className={`rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer transition-transform duration-150 ease-out hover:scale-110 ${
+          className={`relative rounded-full overflow-hidden border-2 border-[#3C332B] shadow-md cursor-pointer transition-transform duration-150 ease-out hover:scale-110 ${
             isSelected ? "scale-110 ring-2 ring-[#C9732F]" : ""
           }`}
           style={{ width: size, height: size }}
         >
           {place.brand ? (
-            <img src={place.brand.icon} alt={place.brand.name} className="w-full h-full object-cover" />
+            <Image src={place.brand.icon} alt={place.brand.name} fill sizes={`${size}px`} className="object-cover" />
           ) : (
             <div className="w-full h-full bg-[#A8A29E]" />
           )}

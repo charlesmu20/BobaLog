@@ -80,7 +80,11 @@ export default function NavBar() {
         <div className="flex items-center justify-between px-3 py-3 min-[760px]:px-8 min-[760px]:py-4">
           <div className="flex items-center gap-6 min-[760px]:gap-8 min-w-0">
             <Link href="/" className="flex items-center shrink-0 transition-transform hover:scale-105">
-              <Image src="/bobalog.png" alt="BobaLog" width={110} height={42} priority className="h-auto w-[110px]" />
+              {/* public/bobalog.png實際檔案是1426x630(比例約2.26),原本寫width=110/height=42
+                  (比例2.62)是錯的,之前靠h-auto讓瀏覽器照實際圖片比例去算高度才沒有跑版,
+                  但這樣next/image會跳aspect ratio警告。既然要把width/height改成跟CSS一致(不能再用auto),
+                  乾脆直接把width/height改成正確比例(110x49),從根本修正,圖片也不會再被硬擠扁 */}
+              <Image src="/bobalog.png" alt="BobaLog" width={110} height={49} loading="eager" className="h-[49px] w-[110px]" />
             </Link>
 
             {/* 760px以上:原本的文字+圖示pill;以下交給漢堡選單,不會再擠在一起 */}

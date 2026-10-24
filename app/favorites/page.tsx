@@ -185,30 +185,29 @@ export default function FavoritesPage() {
 
   return (
     <main className={MAIN_CLASS}>
-      <h1 className="text-2xl font-black text-[#3C332B]">收藏</h1>
-      <p className="mt-1 text-sm text-[#8A7A63]">
-        {isEditMode ? "拖曳項目調整順序,排好後記得按「儲存」" : "想調整順序的話,先按「編輯順序」"}
-      </p>
-
-      <div className="mt-5 mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-1 mb-8 flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-full border-[3px] border-[#3C332B] bg-[#F6EFE4] p-1">
           <button
             onClick={() => setActiveTab("brand")}
             disabled={isEditMode}
-            className={`rounded-full px-5 py-1.5 text-sm font-black transition-colors ${
-              activeTab === "brand" ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]" : "text-[#8A7A63]"
+            className={`cursor-pointer rounded-full px-5 py-1.5 text-sm font-black transition-all active:scale-95 disabled:cursor-not-allowed ${
+              activeTab === "brand"
+                ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]"
+                : "text-[#8A7A63] hover:text-[#4A3424]"
             } ${isEditMode ? "opacity-50" : ""}`}
           >
-            品牌
+            品牌 ({favoriteBrandSlugs.length})
           </button>
           <button
             onClick={() => setActiveTab("drink")}
             disabled={isEditMode}
-            className={`rounded-full px-5 py-1.5 text-sm font-black transition-colors ${
-              activeTab === "drink" ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]" : "text-[#8A7A63]"
+            className={`cursor-pointer rounded-full px-5 py-1.5 text-sm font-black transition-all active:scale-95 disabled:cursor-not-allowed ${
+              activeTab === "drink"
+                ? "bg-[#A6C285] text-[#2E4019] shadow-[3px_3px_0_0_#3C332B]"
+                : "text-[#8A7A63] hover:text-[#4A3424]"
             } ${isEditMode ? "opacity-50" : ""}`}
           >
-            飲料
+            飲料 ({favoriteDrinkIds.length})
           </button>
         </div>
 
@@ -216,13 +215,13 @@ export default function FavoritesPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleCancelEdit}
-              className="rounded-full border-2 border-[#3C332B] bg-white px-4 py-1.5 text-sm font-bold text-[#8A7A63] transition-transform hover:-translate-y-0.5"
+              className="cursor-pointer rounded-full border-2 border-[#3C332B] bg-white px-4 py-1.5 text-sm font-bold text-[#8A7A63] transition-transform hover:-translate-y-0.5 active:scale-95"
             >
               取消
             </button>
             <button
               onClick={handleSaveOrder}
-              className="rounded-full border-2 border-[#3C332B] bg-[#A6C285] px-4 py-1.5 text-sm font-bold text-[#2E4019] shadow-[3px_3px_0_0_#3C332B] transition-transform hover:-translate-y-0.5"
+              className="cursor-pointer rounded-full border-2 border-[#3C332B] bg-[#A6C285] px-4 py-1.5 text-sm font-bold text-[#2E4019] shadow-[3px_3px_0_0_#3C332B] transition-transform hover:-translate-y-0.5 active:scale-95"
             >
               儲存
             </button>
@@ -230,7 +229,7 @@ export default function FavoritesPage() {
         ) : (
           <button
             onClick={() => setIsEditMode(true)}
-            className="rounded-full border-2 border-[#3C332B] bg-white px-4 py-1.5 text-sm font-bold text-[#4A3424] transition-transform hover:-translate-y-0.5"
+            className="cursor-pointer rounded-full border-2 border-[#3C332B] bg-white px-4 py-1.5 text-sm font-bold text-[#4A3424] transition-transform hover:-translate-y-0.5 active:scale-95"
           >
             編輯順序
           </button>
@@ -243,7 +242,11 @@ export default function FavoritesPage() {
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleBrandDragEnd}>
             <SortableContext items={orderedBrandSlugs} strategy={rectSortingStrategy}>
-              <div className="flex flex-wrap gap-x-6 gap-y-8">
+              {/* 用grid固定欄數(不是flex-wrap自然換行),這樣第二排以後的項目才會對齊上面那排的欄位,
+                  不會因為最後一排沒排滿、justify-center把它整排單獨置中,跟上面對不起來。
+                  各斷點的欄數是算好剛好塞得下(110px卡片+28px間距):862px以上空間夠大,乾脆不限制欄數、
+                  改回原本flex-wrap靠左排,也不用再置中 */}
+              <div className="grid grid-cols-[repeat(2,110px)] justify-center gap-x-7 gap-y-10 min-[420px]:grid-cols-[repeat(3,110px)] min-[560px]:grid-cols-[repeat(4,110px)] min-[700px]:grid-cols-[repeat(5,110px)] min-[862px]:flex min-[862px]:flex-wrap min-[862px]:justify-start">
                 {orderedBrands.map((b, i) => (
                   <FavoriteBrandMedal
                     key={b.slug}
@@ -265,7 +268,11 @@ export default function FavoritesPage() {
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDrinkDragEnd}>
           <SortableContext items={orderedDrinkIds} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {/* 飲料卡片本身(名次牌+icon+預留愛心按鈕空間)固定佔掉約152px寬,
+                  塞進太多欄反而每欄分到的文字空間不夠、名稱被截斷成只剩一兩個字。
+                  原本640px就跳3欄、1024px就跳4欄太早了,這裡改成照實際可用寬度抓斷點,
+                  讓每一欄升級的當下文字至少還有約110~120px(6~7個中文字)可以顯示 */}
+              <div className="grid grid-cols-1 gap-4 min-[560px]:grid-cols-2 min-[900px]:grid-cols-3 min-[1200px]:grid-cols-4">
               {orderedDrinks.map((d, i) => (
                 <FavoriteDrinkCard
                   key={d.id}

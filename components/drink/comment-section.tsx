@@ -77,7 +77,9 @@ export default function CommentSection({
           <p className="text-xs text-[#6B5D4F]">還沒有留言,來留下第一則吧</p>
         ) : (
           comments.map((c) => (
-            <div key={c.id} className="flex gap-2.5">
+            // key用c.id,舊留言不會重新mount、新留言第一次出現時才會播放這個進場動畫,
+            // 不會每次有人留言畫面上所有留言就整排一起閃一次
+            <div key={c.id} className="flex gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="w-8 h-8 rounded-full border-2 border-[#3C332B] bg-white flex items-center justify-center flex-shrink-0">
                 <User className="w-4 h-4" style={{ color: "#3C332B" }} />
               </div>
