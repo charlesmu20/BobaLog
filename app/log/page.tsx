@@ -9,6 +9,7 @@ import SuccessToast from "@/components/ui/success-toast";
 import { useBrands } from "@/lib/hooks/useBrands";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useSuccessToast } from "@/lib/hooks/useSuccessToast";
+import { useLogs } from "@/lib/hooks/useLogs";
 
 // 跟首頁、品牌頁同一套:手機版px-2.5讓內容多一點寬度可以用,760px以上才切回px-6
 const MAIN_CLASS = "w-full min-w-0 max-w-6xl mx-auto px-2.5 py-5 min-[760px]:px-6";
@@ -21,6 +22,9 @@ export default function LogPage() {
   // 新增/編輯紀錄成功後的小型提示,跟勳章解鎖toast同一套視覺語言,
   // 但擺在左下角避免跟badge-unlock-toast(右下角)疊在一起
   const { toast: successToast, showToast: setSuccessToast } = useSuccessToast();
+  // logs原本只活在HistoryView裡面,搬到這一層,這樣新增紀錄用的LogModal
+  // (下面那個,不是HistoryView裡編輯用的那個)也拿得到,才能做快速進帳
+  const { logs } = useLogs(user?.uid ?? null);
 
   useEffect(() => {
     if (!checkingAuth && !user) {
@@ -52,6 +56,7 @@ export default function LogPage() {
       <HistoryView
         uid={user.uid}
         brands={brands}
+        logs={logs}
         onAddClick={() => setLogOpen(true)}
         onSuccess={setSuccessToast}
       />
@@ -61,6 +66,7 @@ export default function LogPage() {
         onClose={() => setLogOpen(false)}
         uid={user.uid}
         brands={brands}
+        logs={logs}
         onSuccess={setSuccessToast}
       />
 

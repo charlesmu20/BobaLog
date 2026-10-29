@@ -4,6 +4,7 @@ import "./globals.css";
 import NavBar from "@/components/nav/nav-bar";
 import Footer from "@/components/footer";
 import BadgeUnlockToast from "@/components/badges/badge-unlock-toast";
+import ChatPanel from "@/components/chat/chat-panel";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         <Footer />
         <BadgeUnlockToast />
+        <ChatPanel />
       </body>
     </html>
   );

@@ -1,15 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  deleteDoc,
-  doc,
-} from "firebase/firestore";
+import { useState, useMemo } from "react";
+import { deleteDoc, doc } from "firebase/firestore";
 import { Plus, ChevronDown } from "lucide-react";
 import { db } from "@/lib/firebase";
 import LogModal from "@/components/log/log-modal";
@@ -25,16 +17,19 @@ import ConfirmDialog from "@/components/log/confirm-dialog";
 export default function HistoryView({
   uid,
   brands,
+  logs,
   onAddClick,
   onSuccess,
 }: {
   uid: string;
   brands: Brand[];
+  // logs的抓取(onSnapshot監聽)現在搬到app/log/page.tsx那層的useLogs,
+  // 這裡只負責拿現成的資料來算月份篩選、統計、分組這些衍生畫面,不再自己監聽
+  logs: LogEntry[];
   onAddClick: () => void;
   // 編輯紀錄成功後要顯示的toast訊息,往上交給log頁面統一處理(新增紀錄的LogModal在頁面那層)
   onSuccess?: (message: string) => void;
 }) {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
   const [editingLog, setEditingLog] = useState<LogEntry | null>(null);
 	const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -44,22 +39,6 @@ export default function HistoryView({
 	// 手機版「當月統計」+「最愛品牌」這一整排預設收起來,點按鈕才展開——
 	// 兩個都是本月摘要性質的資訊,合併成同一個收折比較一致。760px以上不受這個狀態影響,永遠展開
 	const [statsOpen, setStatsOpen] = useState(false);
-	//與資料庫連線，取得使用者的紀錄
-	useEffect(() => {
-	const q = query(
-			collection(db, "logs"),
-			where("uid", "==", uid),
-			orderBy("date", "desc")
-	);
-	const unsubscribe = onSnapshot(q, (snapshot) => {
-			const data = snapshot.docs.map((doc) => ({
-			id: doc.id,
-			...doc.data(),
-			})) as LogEntry[];
-			setLogs(data);
-	});
-	return () => unsubscribe();
-	}, [uid]);
 	//month-filter
 	const monthOptions = useMemo(() => {
 	const set = new Set<string>();
@@ -204,6 +183,7 @@ export default function HistoryView({
         uid={uid}
         editingLog={editingLog}
 		brands={brands}
+		logs={logs}
 		onSuccess={onSuccess}
       />
 			{deleteTargetId && (
