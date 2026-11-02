@@ -2,7 +2,7 @@
 // 並且判斷「東西夠不夠清楚可以直接存檔」還是「要先回問使用者一句話」。
 
 import type { Firestore } from "firebase-admin/firestore";
-import type { ChatTurn } from "./gemini";
+import type { ChatTurn } from "../gemini";
 import { extractLogDraft, type ChatImage, type ExtractedDrink } from "./extractLogDraft";
 import {
   loadCatalog,
@@ -11,7 +11,7 @@ import {
   matchDrinkAcrossBrands,
   matchAddOnInBrand,
   type CatalogBrand,
-} from "./catalog";
+} from "../catalog";
 
 // 一杯已經確定可以顯示成確認卡片的資料。addOns是比對到真實選項的加料(有name、price,
 // 金額已經算進amount裡了);比對不到真實選項的加料不會出現在這裡,而是被塞進note文字
@@ -58,15 +58,21 @@ export async function resolveLogDraft(
     return { type: "question", text: extraction.text };
   }
 
-  // extraction.type 是 "extracted" 的情況,開始真的去比對真實資料。
+  return await resolveLogDraftFromItems(db, extraction.items);
+}
+
+// 把「已經知道抽取結果之後」的邏輯(拿真實菜單比對、判斷全部成功還是整批打回去)獨立出來——
+// 統一聊天入口(chatAssistant/routeMessage.ts)會用同一次合併呼叫就抽出items,不需要再讓
+// 這支函式自己重打一次extractLogDraft,直接把items傳進來接著跑就好。resolveLogDraft
+// (上面那支)維持原本單獨呼叫的介面,內部呼叫這支,行為完全不變
+export async function resolveLogDraftFromItems(db: Firestore, items: ExtractedDrink[]): Promise<ChatLogResult> {
   // items可能只有1杯,也可能有好幾杯——「要不要先問使用者要記幾杯」這個判斷,
-  // 交給Gemini自己依語意決定(見extractLogDraft.ts的SYSTEM_INSTRUCTION):
-  // 使用者意圖不清楚時,Gemini會直接用文字回問(extraction.type會是"reply",
-  // 上面那段就處理掉了,不會走到這裡);只有意圖已經清楚、Gemini真的呼叫了工具,
+  // 交給Gemini自己依語意決定(見extractLogDraft.ts的LOG_SYSTEM_INSTRUCTION):
+  // 使用者意圖不清楚時,Gemini會直接用文字回問(resolveLogDraft裡extraction.type會是
+  // "reply",上面那段就處理掉了,不會走到這裡);只有意圖已經清楚、Gemini真的呼叫了工具,
   // 才會走到這裡,所以這裡不用再額外判斷,直接對每一杯各自比對、各自記錄
   // 「成功了(draft)」或「失敗了(為什麼、第幾杯)」,全部跑完才一次判斷:
   // 要嘛全部成功、要嘛整批打回去,不會只挑成功的幾杯先回傳
-  const items = extraction.items;
   const catalog = await loadCatalog(db);
 
   const outcomes: MatchOutcome[] = items.map((item, index) => matchOneItem(item, index, catalog));

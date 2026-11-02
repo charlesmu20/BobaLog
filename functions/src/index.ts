@@ -1,11 +1,12 @@
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { checkAndAwardBadges } from "./checkAndAwardBadges";
-import { getUserStats } from "./stats";
-import { GEMINI_API_KEY, recommendDrink, ChatTurn } from "./gemini";
-import { resolveLogDraft } from "./chatLog";
-import type { ChatImage } from "./extractLogDraft";
+import { checkAndAwardBadges } from "./badges/checkAndAwardBadges";
+import { getUserStats } from "./badges/stats";
+import { GEMINI_API_KEY, ChatTurn } from "./gemini";
+import type { ChatImage } from "./chatLog/extractLogDraft";
+import { PLACES_API_KEY } from "./recommend/places";
+import { resolveChatAssistant } from "./chatAssistant/chatAssistant";
 
 admin.initializeApp();
 
@@ -19,49 +20,37 @@ export const getMyStats = onCall({ region: "asia-east1" }, async (request) => {
 });
 
 // ========== AI聊天視窗 ==========
-// callable function:AI聊天視窗第一垂直切片——推薦飲料。【暫停中,舊版】目前還是
-// 被打回票的「純Gemini自由發揮、沒有比對真實資料」版本,之後要照「做法B」重寫
-// (自己的評分演算法算候選,Gemini只用index挑選+解釋)。前端送出這一輪的訊息+對話歷史,
-// 這裡呼叫Gemini並回傳推薦結果。API金鑰透過secrets帶進來,不會出現在程式碼或前端
-export const chatRecommend = onCall(
-    { region: "asia-east1", secrets: [GEMINI_API_KEY] },
+// callable function:AI聊天視窗統一入口(#155)——取代原本分開的chatRecommend、chatLog
+// 兩支callable function跟前端手動切換模式的按鈕。串接chatAssistant.ts的resolveChatAssistant:
+// 先讓Gemini在同一次呼叫裡自己判斷這句話是記帳還是推薦飲料(或都不是),判斷完再接去
+// 原本記帳/推薦各自的處理邏輯(拿真實資料比對、組候選、呼叫Gemini挑選或反問)——
+// 這兩段邏輯本身完全沒變,只是不再由前端的mode開關決定要呼叫哪一支。
+// image是選填的(拍照記帳用)、location是選填的(瀏覽器GPS,推薦飲料用到),
+// message、image至少要有一個。API金鑰(Gemini+Places)透過secrets帶進來,不會出現在前端
+export const chatAssistant = onCall(
+    { region: "asia-east1", secrets: [GEMINI_API_KEY, PLACES_API_KEY] },
     async (request) => {
         if (!request.auth) {
             throw new HttpsError("unauthenticated", "請先登入");
         }
-        const { message, history } = request.data as { message?: string; history?: ChatTurn[] };
-        if (!message || typeof message !== "string" || !message.trim()) {
-            throw new HttpsError("invalid-argument", "訊息內容不能是空的");
-        }
-        return await recommendDrink(GEMINI_API_KEY.value(), message, history ?? []);
-    }
-);
-
-// callable function:聊天視窗自動記帳用。【現在在做的這個】串接chatLog.ts裡的resolveLogDraft,
-// 把Gemini抽取的結果拿去跟真實菜單比對,回傳「要追問一句話」或「已經確定可以存檔的draft」。
-// image是選填的(拍照記帳用)——message、image至少要有一個,兩個都給也可以
-// (拍照片+補一句文字說明)
-export const chatLog = onCall(
-    { region: "asia-east1", secrets: [GEMINI_API_KEY] },
-    async (request) => {
-        if (!request.auth) {
-            throw new HttpsError("unauthenticated", "請先登入");
-        }
-        const { message, history, image } = request.data as {
+        const { message, history, image, location } = request.data as {
             message?: string;
             history?: ChatTurn[];
             image?: ChatImage;
+            location?: { lat: number; lng: number };
         };
         const hasMessage = typeof message === "string" && !!message.trim();
         const hasImage = !!image?.data;
         if (!hasMessage && !hasImage) {
             throw new HttpsError("invalid-argument", "訊息內容不能是空的");
         }
-        return await resolveLogDraft(
+        return await resolveChatAssistant(
             admin.firestore(),
             GEMINI_API_KEY.value(),
+            PLACES_API_KEY.value(),
             hasMessage ? (message as string) : "",
             history ?? [],
+            location ?? null,
             image
         );
     }

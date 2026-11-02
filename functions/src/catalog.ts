@@ -53,6 +53,60 @@ function normalize(text: string) {
 // 但這裡要比對的是Gemini從使用者口語訊息抽出來的文字,使用者可能講全名(比canonical名稱長,
 // 像一整句話夾著名稱),也可能講縮寫(比canonical名稱短,例如只講「四季烏龍」漏講「奶茶」),
 // 兩種情況都要接得住,所以兩個方向都檢查
+// 把文字裡的中文數字轉成阿拉伯數字,只處理0~99這個範圍——目前唯一需要的情境是
+// 品牌名稱「五十嵐」要能對應到真實資料存的「50嵐」(這是台灣人最常見的兩種寫法,
+// 使用者打「五十嵐」的機率搞不好比打「50嵐」還高)。只在matchBrand這裡用,
+// 不動normalize()本身,避免影響到飲料名稱比對(菜單上有些飲料名稱本來就帶數字編號,
+// 例如UG Tea的「307」「308」,本來就是阿拉伯數字,跟這個函式要處理的中文數字無關,
+// 但還是不想讓這個轉換邏輯波及到不相關的比對,所以刻意限定只套用在品牌名稱這一層)
+const CHINESE_DIGITS: Record<string, number> = {
+  零: 0,
+  一: 1,
+  二: 2,
+  兩: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+};
+
+function convertChineseNumeralsToDigits(text: string): string {
+  let result = "";
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i];
+    if (char in CHINESE_DIGITS && text[i + 1] === "十") {
+      // 「X十」或「X十Y」這種兩位數的開頭,例如「五十」(50)、「五十三」(53)
+      const tens = CHINESE_DIGITS[char];
+      if (text[i + 2] in CHINESE_DIGITS) {
+        result += String(tens * 10 + CHINESE_DIGITS[text[i + 2]]);
+        i += 3;
+      } else {
+        result += String(tens * 10);
+        i += 2;
+      }
+      continue;
+    }
+    if (char === "十") {
+      // 單獨的「十」,前面沒有接中文數字,當作10(例如「十嵐」這種講法)
+      result += "10";
+      i++;
+      continue;
+    }
+    if (char in CHINESE_DIGITS) {
+      result += String(CHINESE_DIGITS[char]);
+      i++;
+      continue;
+    }
+    result += char;
+    i++;
+  }
+  return result;
+}
+
 function looseMatch(rawText: string, canonicalName: string) {
   const a = normalize(rawText);
   const b = normalize(canonicalName);
@@ -99,14 +153,22 @@ function editDistance(a: string, b: string): number {
 }
 
 // 使用者說的品牌名稱(可能口語、不完整),去跟真實品牌清單比對,比對到回傳那個品牌,沒比對到回傳null。
-// 先試鬆散比對(包含關係),完全沒中的話,才退一步容忍「打錯一個字」(編輯距離<=1)——
-// 這個容錯只在完全比對不到的時候才啟動,不會蓋掉原本比對得到的結果
+// 先試鬆散比對(包含關係,原始文字跟中文數字轉換後的文字都各試一次——接住「五十嵐」
+// 對應資料存的「50嵐」這種情況),完全沒中的話,才退一步容忍「打錯一個字」(編輯距離<=1,
+// 同樣兩種寫法都各試一次)——這個容錯只在完全比對不到的時候才啟動,不會蓋掉原本比對得到的結果
 export function matchBrand(rawText: string, brands: CatalogBrand[]): CatalogBrand | null {
-  const exact = brands.find((b) => looseMatch(rawText, b.name));
+  const convertedText = convertChineseNumeralsToDigits(rawText);
+  const exact = brands.find((b) => looseMatch(rawText, b.name) || looseMatch(convertedText, b.name));
   if (exact) return exact;
 
   const a = normalize(rawText);
-  return brands.find((b) => editDistance(a, normalize(b.name)) <= 1) ?? null;
+  const aConverted = normalize(convertedText);
+  return (
+    brands.find((b) => {
+      const bNormalized = normalize(b.name);
+      return editDistance(a, bNormalized) <= 1 || editDistance(aConverted, bNormalized) <= 1;
+    }) ?? null
+  );
 }
 
 // 已經知道是哪個品牌了,在它底下的飲料清單裡找使用者說的飲料名稱。

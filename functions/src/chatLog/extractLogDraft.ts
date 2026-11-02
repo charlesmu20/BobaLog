@@ -4,7 +4,7 @@
 // 那是functions/src/catalog.ts負責的事,兩邊分開。
 
 import { FunctionDeclaration, GoogleGenAI } from "@google/genai";
-import type { ChatTurn } from "./gemini";
+import type { ChatTurn } from "../gemini";
 
 // 拍照記帳用:前端把照片縮小壓縮後轉成base64傳過來,這裡直接轉成Gemini看得懂的inlineData格式
 export type ChatImage = { mimeType: string; data: string };
@@ -36,7 +36,10 @@ export type LogExtractionResult =
 // create_log_draft這張表單的定義。只有在Gemini判斷「至少知道品牌跟飲料」時才應該呼叫這個工具,
 // 其他欄位(size、note)可以不填——所以required裡只放brandName、drinkName兩個必填欄位
 // 【表單格式定義】
-const CREATE_LOG_DRAFT_DECLARATION: FunctionDeclaration = {
+// 有export出去——統一聊天入口(chatAssistant/routeMessage.ts)會把這個declaration跟
+// extract_recommend_intent一起掛在同一次Gemini呼叫裡,讓Gemini自己判斷要呼叫哪一個,
+// 不是另外複製一份
+export const CREATE_LOG_DRAFT_DECLARATION: FunctionDeclaration = {
   name: "create_log_draft",
   description:
     "使用者描述了一杯剛喝過(或想記錄)的飲料,而且品牌跟飲料資訊都夠清楚時,呼叫這個工具記錄下來。" +
@@ -81,7 +84,9 @@ const CREATE_LOG_DRAFT_DECLARATION: FunctionDeclaration = {
 };
 
 // 【跟Gemini說規則】
-const SYSTEM_INSTRUCTION =
+// 同樣有export出去——統一聊天入口組合指令時,會把這段原封不動接進去,不會改寫內容,
+// 只在外層多加一段「這次兩個工具都有可能,怎麼判斷要用哪一個」的仲裁說明
+export const LOG_SYSTEM_INSTRUCTION =
   "你是BobaLog這個手搖飲紀錄App裡的記帳小幫手。使用者會用一句話描述他剛喝過(或想記錄)的飲料," +
   "有時候會改成傳一張照片(手搖飲的收據,或是飲料杯身、標籤貼紙),也可能兩個都有(照片+一句補充文字)。" +
   "如果收到照片,請從照片裡讀出品牌名稱跟飲料名稱——收據上通常會印店名跟品項,杯身或標籤貼紙上可能印著" +
@@ -125,6 +130,28 @@ const SYSTEM_INSTRUCTION =
   "回覆的文字一律用純文字,不要用任何markdown語法(例如**粗體**、_斜體_、#標題、-項目符號等)," +
   "前端只會把文字原封不動顯示出來,markdown符號不會被轉換,只會變成使用者看得到的星號或井字號。";
 
+// 把Gemini呼叫create_log_draft的結果(可能好幾筆,一筆一杯)轉成ExtractedDrink陣列——
+// 單獨抽出來,這樣統一聊天入口(routeMessage.ts)判斷出這次是記帳、要處理同一次合併呼叫裡的
+// 結果時,可以直接重用這段解析邏輯,不用自己再複製一份同樣的轉換規則
+export function buildExtractedDrinksFromCalls(calls: { args?: unknown }[]): ExtractedDrink[] {
+  return calls.map((call) => {
+    const args = call.args as {
+      brandName: string;
+      drinkName: string;
+      size?: "M" | "L";
+      note?: string;
+      addOns?: string[];
+    };
+    return {
+      brandName: args.brandName,
+      drinkName: args.drinkName,
+      size: args.size ?? null,
+      note: args.note ?? "",
+      addOns: args.addOns ?? [],
+    };
+  });
+}
+
 // 真正呼叫Gemini的函式:把表單定義、系統指令、使用者這句話(可能還有照片)、對話歷史,
 // 全部包好送出去。image是選填的——拍照記帳才會有,純文字訊息沿用原本的流程
 export async function extractLogDraft(
@@ -154,7 +181,7 @@ export async function extractLogDraft(
     model: "gemini-3.8-flash",
     contents,
     config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
+      systemInstruction: LOG_SYSTEM_INSTRUCTION,
       tools: [{ functionDeclarations: [CREATE_LOG_DRAFT_DECLARATION] }],
     },
   });
@@ -163,24 +190,7 @@ export async function extractLogDraft(
   // 所以這裡要用filter拿全部的呼叫,不是只拿第一個】
   const calls = response.functionCalls?.filter((c) => c.name === "create_log_draft" && c.args) ?? [];
   if (calls.length > 0) {
-    // 【每個呼叫都組成一筆ExtractedDrink,全部放進items陣列回傳】
-    const items: ExtractedDrink[] = calls.map((call) => {
-      const args = call.args as {
-        brandName: string;
-        drinkName: string;
-        size?: "M" | "L";
-        note?: string;
-        addOns?: string[];
-      };
-      return {
-        brandName: args.brandName,
-        drinkName: args.drinkName,
-        size: args.size ?? null,
-        note: args.note ?? "",
-        addOns: args.addOns ?? [],
-      };
-    });
-    return { type: "extracted", items };
+    return { type: "extracted", items: buildExtractedDrinksFromCalls(calls) };
   }
 
   // 【沒呼叫工具,組成reply回傳】

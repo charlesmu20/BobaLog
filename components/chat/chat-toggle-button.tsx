@@ -12,7 +12,7 @@ export default function ChatToggleButton({ onClick }: { onClick: () => void }) {
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
       aria-label="開啟聊天"
-      className="fixed bottom-6 right-6 z-40 flex size-14 items-center justify-center rounded-full bg-gradient-to-br from-[#D98A44] to-[#B2612A] text-white shadow-xl"
+      className="fixed bottom-6 right-6 z-40 flex size-14 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#D98A44] to-[#B2612A] text-white shadow-xl"
     >
       <MessageCircle className="size-6" />
     </motion.button>

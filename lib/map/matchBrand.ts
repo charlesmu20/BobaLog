@@ -18,14 +18,37 @@ function normalize(text: string) {
   return text.toLowerCase().replace(/の/g, "");
 }
 
+// 光是「找到第一個符合的品牌就採用」還不夠——實測真實的Google地圖資料時發現,
+// 「UG Tea 樂己」拆出來的「Tea」是個太通用的英文單字,隨便一家店名裡出現"tea"
+// (例如「Who's Tea 鬍子茶」「五桐號WooTea」)都會被誤判成「UG Tea」,蓋掉原本
+// 應該比對到的真正品牌(鬍子茶、五桐號,它們自己的全名其實也在店名裡完整出現)。
+// 所以改成:每個品牌都算出「命中的那一段,占這個品牌完整名稱的比例」(覆蓋率),
+// 完整比對到整個品牌名稱(例如「鬍子茶」整段打中)覆蓋率是1,只比對到品牌裡一小段
+// (例如「UG Tea 樂己」裡的「Tea」)覆蓋率就很低;最後挑覆蓋率最高的品牌,
+// 而不是陣列順序裡先出現的那個,這樣「鬍子茶」的完整命中才會贏過「UG Tea」的部分命中
 export function matchBrand(placeName: string, brands: BrandSummary[]) {
   const normalizedPlaceName = normalize(placeName);
-  return (
-    brands.find((b) =>
-      b.name
-        .split(/\s+/)
-        .filter((segment) => segment.length >= 2)
-        .some((segment) => normalizedPlaceName.includes(normalize(segment)))
-    ) ?? null
-  );
+
+  let best: { brand: BrandSummary; coverage: number } | null = null;
+
+  for (const brand of brands) {
+    const normalizedBrandName = normalize(brand.name).replace(/\s+/g, "");
+    const segments = brand.name.split(/\s+/).filter((segment) => segment.length >= 2);
+
+    let bestCoverageForThisBrand = 0;
+    for (const segment of segments) {
+      const normalizedSegment = normalize(segment);
+      if (!normalizedPlaceName.includes(normalizedSegment)) continue;
+      const coverage = normalizedSegment.length / normalizedBrandName.length;
+      if (coverage > bestCoverageForThisBrand) {
+        bestCoverageForThisBrand = coverage;
+      }
+    }
+
+    if (bestCoverageForThisBrand > 0 && (!best || bestCoverageForThisBrand > best.coverage)) {
+      best = { brand, coverage: bestCoverageForThisBrand };
+    }
+  }
+
+  return best?.brand ?? null;
 }
