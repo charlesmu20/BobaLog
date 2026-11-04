@@ -68,5 +68,20 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == resource.data.uid;
       allow write: if false;
     }
+
+    // menuReports:菜單回報(品牌資訊/價格/更新問題)。一般使用者只能讀/新增自己送出的,
+    // 不能自己改內容。管理員(custom claims的admin:true,scripts/set-admin.ts設定的)
+    // 可以讀全部回報,也可以更新status/note這兩個欄位(沒照片的回報用來標記核准/拒絕)。
+    // 實際改brands資料(套用AI diff、revert)不走這裡,是透過Cloud Function用Admin SDK寫入,
+    // 不受這些規則限制,所以這裡不用額外開放aiDiff/appliedChanges的寫入權限
+    match /menuReports/{reportId} {
+      allow read: if request.auth != null
+        && (request.auth.uid == resource.data.uid || request.auth.token.admin == true);
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow update: if request.auth != null
+        && request.auth.token.admin == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "note"]);
+      allow delete: if false;
+    }
   }
 }

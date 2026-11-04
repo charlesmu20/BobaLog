@@ -2,16 +2,18 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Heart } from "lucide-react";
+import { ArrowLeft, Heart, Flag } from "lucide-react";
 import { useBrand } from "@/lib/hooks/useBrand";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useFavorites } from "@/lib/hooks/useFavorites";
 import { useRatings } from "@/lib/hooks/useRating";
 import { useComments } from "@/lib/hooks/useComments";
 import { useSuccessToast } from "@/lib/hooks/useSuccessToast";
+import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
 import RatingStars, { StaticStars } from "@/components/drink/rating-stars";
 import CommentSection from "@/components/drink/comment-section";
 import LoginRequiredModal from "@/components/login-required-modal";
+import ReportModal from "@/components/report/report-modal";
 import LoadingCard from "@/components/loading-card";
 import ErrorCard from "@/components/error-card";
 import SuccessToast from "@/components/ui/success-toast";
@@ -32,6 +34,9 @@ export default function DrinkCommentPage({
   const { isDrinkFavorited, toggleDrinkFavorite } = useFavorites(user?.uid ?? null);
   const { toast, showToast } = useSuccessToast();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  // 回報表單的品牌下拉選單要給完整品牌清單,跟brand-menu-header.tsx那邊同一個hook
+  const { brands: brandSummaries } = useBrandSummaries();
 
   if (brandLoading) {
     return (
@@ -97,6 +102,15 @@ export default function DrinkCommentPage({
     showToast(wasFavorited ? "已取消收藏" : "已加入收藏");
   };
 
+  // 點回報按鈕時執行的函式,跟收藏同一套登入檢查邏輯
+  const handleOpenReport = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    setShowReportModal(true);
+  };
+
   return (
     <main className={MAIN_CLASS}>
       {/* 登入提示彈窗,沒登入點星星或送留言時會打開 */}
@@ -128,19 +142,28 @@ export default function DrinkCommentPage({
               </div>
               <span className="text-sm font-bold text-[#6B5D4F]">{brand.name}</span>
             </div>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black leading-tight text-[#3C332B]">{drink.name}</h1>
-              <button
-                onClick={handleToggleFavorite}
-                aria-label="收藏這杯飲料"
-                className="w-9 h-9 rounded-full bg-[#F6F2EA] border-[3px] border-[#3C332B] flex items-center justify-center flex-shrink-0 cursor-pointer transition-transform hover:-translate-y-0.5"
-              >
-                <Heart
-                  className="w-4 h-4"
-                  style={{ color: "#3C332B" }}
-                  fill={isDrinkFavorited(slug, drinkId) ? "#A6C285" : "none"}
-                />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={handleToggleFavorite}
+                  aria-label="收藏這杯飲料"
+                  className="w-9 h-9 rounded-full bg-[#F6F2EA] border-[3px] border-[#3C332B] flex items-center justify-center flex-shrink-0 cursor-pointer transition-transform hover:-translate-y-0.5"
+                >
+                  <Heart
+                    className="w-4 h-4"
+                    style={{ color: "#3C332B" }}
+                    fill={isDrinkFavorited(slug, drinkId) ? "#A6C285" : "none"}
+                  />
+                </button>
+                <button
+                  onClick={handleOpenReport}
+                  className="h-9 shrink-0 cursor-pointer rounded-full border-[3px] border-[#3C332B] bg-[#F6F2EA] flex items-center gap-1.5 px-3 transition-transform hover:-translate-y-0.5"
+                >
+                  <Flag className="w-4 h-4 shrink-0" style={{ color: "#3C332B" }} />
+                  <span className="whitespace-nowrap text-xs font-bold text-[#3C332B]">回報問題</span>
+                </button>
+              </div>
             </div>
             <ul aria-label="價格" className="flex flex-wrap gap-2">
               {sameSizePrice ? (
@@ -202,6 +225,16 @@ export default function DrinkCommentPage({
       </section>
 
       <SuccessToast message={toast} />
+
+      <ReportModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        uid={user?.uid ?? ""}
+        brands={brandSummaries}
+        defaultBrandSlug={slug}
+        initialDescription={`「${drink.name}」:`}
+        onSuccess={showToast}
+      />
     </main>
   );
 }

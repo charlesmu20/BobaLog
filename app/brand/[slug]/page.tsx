@@ -4,12 +4,14 @@ import { useBrand } from "@/lib/hooks/useBrand";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useFavorites } from "@/lib/hooks/useFavorites";
 import { useBrandRatings } from "@/lib/hooks/useRating";
+import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
 import type { Drink } from "@/lib/brands";
 import BrandMenuHeader from "@/components/brand-menu/brand-menu-header";
 import SearchInput from "@/components/search-input";
 import BrandMenuTabs from "@/components/brand-menu/brand-menu-tabs";
 import BrandMenuList from "@/components/brand-menu/brand-menu-list";
 import LoginRequiredModal from "@/components/login-required-modal";
+import ReportModal from "@/components/report/report-modal";
 import LoadingCard from "@/components/loading-card";
 import ErrorCard from "@/components/error-card";
 import SuccessToast from "@/components/ui/success-toast";
@@ -24,10 +26,14 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
   // 把 slug 跟登入狀態丟進去,拿到「查詢收藏狀態」跟「切換收藏」用的工具
   const { isBrandFavorited, isDrinkFavorited, toggleBrandFavorite, toggleDrinkFavorite } = useFavorites(user?.uid ?? null);
   const ratingsByDrink = useBrandRatings(slug);
+  // 回報表單的品牌下拉選單要給完整品牌清單(BrandSummary就夠,不用完整Brand含飲料),
+  // 跟useBrand(slug)是兩份不同的資料,各自負責不同用途
+  const { brands: brandSummaries } = useBrandSummaries();
 
   const [search, setSearch] = useState("");
   const [highlightedCategory, setHighlightedCategory] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { toast, showToast } = useSuccessToast();
 
@@ -66,6 +72,15 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
     const wasFavorited = isBrandFavorited(slug);
     toggleBrandFavorite(slug);
     showToast(wasFavorited ? "已取消收藏" : "已加入收藏");
+  };
+  // 點擊回報按鈕時執行的函式,跟收藏同一套登入檢查邏輯——沒登入先彈登入提示,
+  // 不要讓沒登入的使用者看到回報表單卻送不出去
+  const handleOpenReport = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    setShowReportModal(true);
   };
   // 點擊「收藏飲料」按鈕時執行的函式,同樣加入/取消都跳提示
   const handleToggleDrinkFavorite = (drinkId: string) => {
@@ -121,6 +136,7 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
         brand={brand}
         isFavorite={isBrandFavorited(slug)}
         onToggleFavorite={handleToggleBrandFavorite}
+        onReport={handleOpenReport}
       />
 			{/* 搜尋框 */}
       <div className="mb-5">
@@ -142,6 +158,15 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
       />
 
       <SuccessToast message={toast} />
+
+      <ReportModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        uid={user?.uid ?? ""}
+        brands={brandSummaries}
+        defaultBrandSlug={slug}
+        onSuccess={showToast}
+      />
     </main>
   );
 }

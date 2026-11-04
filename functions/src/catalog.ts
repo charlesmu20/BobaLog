@@ -171,45 +171,74 @@ export function matchBrand(rawText: string, brands: CatalogBrand[]): CatalogBran
   );
 }
 
-// 已經知道是哪個品牌了,在它底下的飲料清單裡找使用者說的飲料名稱。
-// 回傳「所有」比對到的飲料,可能0個、1個、或好幾個——跟matchBrand不一樣,這裡故意不只拿第一個,
-// 因為同一個品牌底下很可能有好幾款飲料都鬆散包含同一段文字(例如使用者只說「紅茶」,
-// 這個品牌可能同時有「檸檬紅茶」「阿薩姆紅茶」「蜂蜜紅茶」,通通符合)。
-// 真正該挑哪一款不是我們自己偷偷決定,交給呼叫的地方看命中數量再處理。
-//
-// 比對分三層,一層完全沒中才退到下一層:
+// 飲料名稱比對的三層規則,拆成三個獨立函式——matchDrinkInBrand(單一品牌內)跟
+// matchDrinkAcrossBrands(跨全部品牌)都要用同一套三層定義,差別只在「分層的範圍」:
+// matchDrinkInBrand是「這個品牌內部」一層一層退;matchDrinkAcrossBrands則是要retry
+// 整個「全部品牌」才退下一層(見下面matchDrinkAcrossBrands的說明,這是修掉的bug重點)
 // 1. 完全一樣的飲料名稱——找到就只採用這個,不要再混進下面兩層的結果,不然像「珍珠奶茶」
 //    這種精準輸入,會被菜單裡剛好字面上包含「奶茶」兩個字的其他飲料(例如單純的「奶茶」)
 //    一起拉進候選清單,變成語意上完全不同的東西也被列成選項
 // 2. 鬆散比對(連續子字串包含)——接住「珍奶」這種縮寫,或是多打了幾個字的情況
 // 3. 子序列比對(順序對、但可以不連續)——接住「黑糖鮮奶」漏講中間「珍珠」兩個字,
 //    對應到真正「黑糖珍珠鮮奶茶」這種情況
+function exactDrinkMatches(rawText: string, brand: CatalogBrand): CatalogDrink[] {
+  return brand.drinks.filter((d) => normalize(d.name) === normalize(rawText));
+}
+function looseDrinkMatches(rawText: string, brand: CatalogBrand): CatalogDrink[] {
+  return brand.drinks.filter((d) => looseMatch(rawText, d.name));
+}
+function subsequenceDrinkMatches(rawText: string, brand: CatalogBrand): CatalogDrink[] {
+  return brand.drinks.filter((d) => subsequenceMatch(rawText, d.name));
+}
+
+// 已經知道是哪個品牌了,在它底下的飲料清單裡找使用者說的飲料名稱。
+// 回傳「所有」比對到的飲料,可能0個、1個、或好幾個——跟matchBrand不一樣,這裡故意不只拿第一個,
+// 因為同一個品牌底下很可能有好幾款飲料都鬆散包含同一段文字(例如使用者只說「紅茶」,
+// 這個品牌可能同時有「檸檬紅茶」「阿薩姆紅茶」「蜂蜜紅茶」,通通符合)。
+// 真正該挑哪一款不是我們自己偷偷決定,交給呼叫的地方看命中數量再處理。
 export function matchDrinkInBrand(rawText: string, brand: CatalogBrand): CatalogDrink[] {
-  const exact = brand.drinks.filter((d) => normalize(d.name) === normalize(rawText));
+  const exact = exactDrinkMatches(rawText, brand);
   if (exact.length > 0) return exact;
 
-  const loose = brand.drinks.filter((d) => looseMatch(rawText, d.name));
+  const loose = looseDrinkMatches(rawText, brand);
   if (loose.length > 0) return loose;
 
-  return brand.drinks.filter((d) => subsequenceMatch(rawText, d.name));
+  return subsequenceDrinkMatches(rawText, brand);
 }
 
 // 不知道品牌、只知道飲料名稱,直接在全部品牌的飲料裡找。
 // 回傳「所有」比對到的(品牌,飲料)組合,可能是0個、1個、或好幾個。
-// 這裡呼叫matchDrinkInBrand也會拿到陣列,所以要把每個品牌命中的每一款飲料都攤平塞進同一份清單——
-// 這樣「同一品牌裡有多款符合」跟「好幾個不同品牌都有符合」這兩種歧義,最後都會變成同一份
-// 候選清單,之後要問使用者「是這幾款裡的哪一個」的時候,不用分兩套邏輯處理
+//
+// 分層要「整個全部品牌」retry完才退下一層,不能每個品牌各自獨立退層——
+// 原本的寫法是對每個品牌各自呼叫matchDrinkInBrand(各自在品牌內部做完三層),
+// 再把結果攤平合併,這樣會有bug:假設A品牌有一款飲料名稱完全精準符合(exact),
+// B品牌雖然沒有精準符合,但剛好有別的飲料鬆散包含同一段文字(loose)——A的exact
+// 結果跟B的loose結果會被攤平混在同一份候選清單裡,使用者明明講的是A品牌那杯
+// 一模一樣名稱的飲料,卻被B品牌不相關的鬆散命中拖累,變成一堆選項要問使用者選。
+// 正確做法是:先看「全部品牌」裡有沒有任何exact命中,有的話只採用這些exact結果就好,
+// 完全不看loose/subsequence;全部品牌都沒有exact命中,才退一層改成收集全部品牌的loose結果;
+// 以此類推
 export function matchDrinkAcrossBrands(
   rawText: string,
   brands: CatalogBrand[]
 ): { brand: CatalogBrand; drink: CatalogDrink }[] {
-  const hits: { brand: CatalogBrand; drink: CatalogDrink }[] = [];
-  for (const brand of brands) {
-    for (const drink of matchDrinkInBrand(rawText, brand)) {
-      hits.push({ brand, drink });
+  const collect = (matcher: (rawText: string, brand: CatalogBrand) => CatalogDrink[]) => {
+    const hits: { brand: CatalogBrand; drink: CatalogDrink }[] = [];
+    for (const brand of brands) {
+      for (const drink of matcher(rawText, brand)) {
+        hits.push({ brand, drink });
+      }
     }
-  }
-  return hits;
+    return hits;
+  };
+
+  const exact = collect(exactDrinkMatches);
+  if (exact.length > 0) return exact;
+
+  const loose = collect(looseDrinkMatches);
+  if (loose.length > 0) return loose;
+
+  return collect(subsequenceDrinkMatches);
 }
 
 // 已經知道是哪個品牌了(飲料都比對確定之後才會知道),在它的加料清單裡找使用者說的加料名稱。

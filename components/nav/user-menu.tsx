@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { signOut, User } from "firebase/auth";
-import { User as UserIcon, LogOut } from "lucide-react";
+import { User as UserIcon, LogOut, ShieldCheck } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NAV_ICON_BUTTON_BASE } from "@/lib/nav-icon-button";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
+import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -17,6 +18,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function UserMenu({ user }: { user: User }) {
+  // 只是決定要不要顯示這個選項,不是真正的權限把關(真正擋人的檢查在
+  // app/admin/menu-reports/page.tsx跟Firestore rules/Cloud Function那邊)
+  const { isAdmin } = useIsAdmin();
+
   const handleLogout = async () => {
     await signOut(auth);
   };
@@ -49,6 +54,14 @@ export default function UserMenu({ user }: { user: User }) {
             個人資料
           </Link>
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem className="rounded-lg px-2.5 py-2 data-[highlighted]:bg-[#A6C285]">
+            <Link href="/admin/menu-reports" className="flex items-center gap-2.5 w-full text-[#3C332B] font-medium">
+              <ShieldCheck className="w-4 h-4 text-[#6B5D4F]" />
+              菜單回報管理
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onClick={handleLogout}
           className="rounded-lg px-2.5 py-2 text-red-600 cursor-pointer font-medium data-[highlighted]:bg-red-300 data-[highlighted]:text-red-950"

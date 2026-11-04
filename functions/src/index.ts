@@ -1,12 +1,16 @@
 import * as admin from "firebase-admin";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentWritten, onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
 import { checkAndAwardBadges } from "./badges/checkAndAwardBadges";
 import { getUserStats } from "./badges/stats";
 import { GEMINI_API_KEY, ChatTurn } from "./gemini";
 import type { ChatImage } from "./chatLog/extractLogDraft";
 import { PLACES_API_KEY } from "./recommend/places";
 import { resolveChatAssistant } from "./chatAssistant/chatAssistant";
+import { compareMenuPhoto } from "./menuReport/compareMenuPhoto";
+import { applyMenuReportChanges } from "./menuReport/applyMenuReportChanges";
+import { revertAllAppliedChanges } from "./menuReport/revertAllAppliedChanges";
 
 admin.initializeApp();
 
@@ -96,4 +100,84 @@ export const onCommentWritten = onDocumentWritten("comments/{commentId}", async 
     if (!uid) return;
 
     await checkAndAwardBadges(uid);
+});
+
+// ========== 回報菜單錯誤:AI辨識+自動比對 ==========
+// onDocumentCreated:使用者送出回報的那一刻觸發一次就好(不像onDocumentWritten,
+// 之後管理頁面寫入核准/拒絕狀態時不會再重複觸發一次AI辨識)。
+// 只有附照片的回報才需要跑AI辨識+比對,其餘(單純文字說明)的回報維持pending,
+// 交給管理頁面純人工處理。
+// aiDiffStatus有三種狀態:"pending"(還在跑或還沒跑)、"done"(比對完成,aiDiff有內容)、
+// "error"(辨識或比對過程出錯,aiDiffError會記錄原因,管理頁面要顯示出來讓人知道
+// 這筆要自己手動核對,不是沒有照片)
+export const onMenuReportCreated = onDocumentCreated(
+    { document: "menuReports/{reportId}", region: "asia-east1", secrets: [GEMINI_API_KEY] },
+    async (event) => {
+        const snap = event.data;
+        if (!snap) return;
+
+        const report = snap.data() as { brandSlug?: string; photoUrl?: string | null };
+        if (!report.photoUrl || !report.brandSlug) {
+            // 沒有照片——不需要AI辨識,保持原本的pending狀態給人工處理
+            return;
+        }
+
+        try {
+            const diff = await compareMenuPhoto(
+                admin.firestore(),
+                GEMINI_API_KEY.value(),
+                report.brandSlug,
+                report.photoUrl
+            );
+            await snap.ref.update({
+                aiDiffStatus: "done",
+                aiDiff: diff,
+            });
+        } catch (err) {
+            logger.error("menuReport AI比對失敗", { reportId: event.params.reportId, err });
+            await snap.ref.update({
+                aiDiffStatus: "error",
+                aiDiffError: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+);
+
+// ========== 回報菜單錯誤:管理頁面審核動作 ==========
+// 兩支都是admin限定,用custom claims(scripts/set-admin.ts設定的admin:true)判斷,
+// 不是看前端有沒有顯示管理頁面入口——前端隱藏按鈕不算權限控制,真正擋人一定要在後端做。
+// 實際改brands資料的邏輯都寫在menuReport/底下,這裡只負責驗證身份+把參數轉交過去
+
+function assertAdmin(isAuthed: boolean, isAdmin: boolean): void {
+    if (!isAuthed) {
+        throw new HttpsError("unauthenticated", "請先登入");
+    }
+    if (!isAdmin) {
+        throw new HttpsError("permission-denied", "只有管理員能執行這個操作");
+    }
+}
+
+// 管理員在diff卡片上核准了某些項目、按下「套用」之後呼叫——真正去改brands的資料,
+// 套用前會把每一筆「改之前的樣子」記錄下來,給下面的revertAllMenuReportChanges用
+export const applyMenuReportDecision = onCall({ region: "asia-east1" }, async (request) => {
+    assertAdmin(!!request.auth, request.auth?.token.admin === true);
+    const { reportId, approvedDiffIds } = request.data as {
+        reportId?: string;
+        approvedDiffIds?: string[];
+    };
+    if (!reportId || !Array.isArray(approvedDiffIds)) {
+        throw new HttpsError("invalid-argument", "缺少reportId或approvedDiffIds");
+    }
+    return await applyMenuReportChanges(admin.firestore(), reportId, approvedDiffIds);
+});
+
+// 一次復原這筆回報全部還沒復原過的變更。套用過的回報不會回到待審核、
+// 也不能重新套用,這支function單純是補救用:把brands資料改回套用前的樣子
+export const revertAllMenuReportChanges = onCall({ region: "asia-east1" }, async (request) => {
+    assertAdmin(!!request.auth, request.auth?.token.admin === true);
+    const { reportId } = request.data as { reportId?: string };
+    if (!reportId) {
+        throw new HttpsError("invalid-argument", "缺少reportId");
+    }
+    return await revertAllAppliedChanges(admin.firestore(), reportId);
 });
