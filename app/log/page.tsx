@@ -3,8 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import LogModal from "@/components/log/log-modal";
 import HistoryView from "@/components/log/history-view";
-import LoadingCard from "@/components/loading-card";
-import ErrorCard from "@/components/error-card";
+import { loadingGuard, errorGuard } from "@/components/async-guard";
 import SuccessToast from "@/components/ui/success-toast";
 import { useBrands } from "@/lib/hooks/useBrands";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
@@ -33,23 +32,13 @@ export default function LogPage() {
   }, [checkingAuth, user, router]);
 
 
-    if (checkingAuth || !user || brandsLoading) {
-        return (
-          <main className={MAIN_CLASS}>
-            <LoadingCard />
-          </main>
-        );
-    }
+  // 還在檢查登入狀態、還沒登入(等上面useEffect導去/login)、或品牌清單還沒抓完,都算loading;
+  // 條件式留在這裡的if裡(不要包進loadingGuard的參數),下面user.uid才能順利narrow成非null
+  if (checkingAuth || !user || brandsLoading) return loadingGuard(MAIN_CLASS);
 
-    // 抓取品牌清單失敗(離線、網路問題等):給可重試的錯誤卡片,
-    // 不然畫面會卡在上面的LoadingCard轉圈圈出不來
-    if (brandsError) {
-        return (
-          <main className={MAIN_CLASS}>
-            <ErrorCard title="品牌資料載入失敗" onRetry={retry} />
-          </main>
-        );
-    }
+  // 抓取品牌清單失敗(離線、網路問題等):給可重試的錯誤卡片,
+  // 不然畫面會卡在上面的LoadingCard轉圈圈出不來
+  if (brandsError) return errorGuard(MAIN_CLASS, "品牌資料載入失敗", undefined, retry);
 
   return (
     <main className={MAIN_CLASS}>

@@ -4,10 +4,6 @@ import { ArrowUpRight } from "lucide-react";
 import type { BrandSummary } from "@/lib/brands";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 
-// 這版是直接把v0生成的卡片樣式搬過來的:厚邊框+硬陰影的貼紙卡,
-// hover時卡片往左上浮起、陰影變大且變成強調色,按下去陰影會壓縮回去。
-// 整張卡片本身就是連結(不用再點一下才展開選單),所以原本的openBrand展開/
-// 點外面關閉那套useState+useRef+useEffect邏輯都拿掉了,元件變成不需要state的簡單版。
 export default function BrandCardGrid({ brands }: { brands: BrandSummary[] }) {
   return (
     <div>

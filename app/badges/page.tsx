@@ -8,7 +8,7 @@ import { useUserStats } from "@/lib/hooks/useUserStats";
 import { BadgeRow } from "@/components/badges/badge-row";
 import { BadgeChip } from "@/components/badges/badge-chip";
 import { MedalA } from "@/components/badges/medal-a";
-import LoadingCard from "@/components/loading-card";
+import { loadingGuard } from "@/components/async-guard";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import { BADGES, BadgeCategory } from "@/lib/badges";
 
@@ -182,13 +182,7 @@ export default function BadgesPage() {
 
   // 勳章清單、統計數字,兩個都抓完才一次顯示整頁,跟首頁同一套邏輯,
   // 不要讓總覽卡、已解鎖、未解鎖分批跳出來
-  if (badgesLoading || stats === null) {
-    return (
-      <main className={MAIN_CLASS}>
-        <LoadingCard message="載入成就中..." />
-      </main>
-    );
-  }
+  if (badgesLoading || stats === null) return loadingGuard(MAIN_CLASS, "載入成就中...");
 
   // 已解鎖的,不分類別,整批放在最上面的展示區
   const unlockedList = BADGES.filter((b) => unlockedBadges.has(b.id));

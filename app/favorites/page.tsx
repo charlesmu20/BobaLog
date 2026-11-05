@@ -20,7 +20,7 @@ import { useSearchIndex } from "@/lib/hooks/useSearchIndex";
 import { useFavorites } from "@/lib/hooks/useFavorites";
 import FavoriteBrandMedal from "@/components/favorites/favorite-brand-medal";
 import FavoriteDrinkCard from "@/components/favorites/favorite-drink-card";
-import LoadingCard from "@/components/loading-card";
+import { loadingGuard } from "@/components/async-guard";
 
 const MAIN_CLASS = "mx-auto w-full max-w-6xl min-w-0 px-2.5 py-6 min-[760px]:px-6";
 
@@ -145,13 +145,7 @@ export default function FavoritesPage() {
 
   const dataLoading = brandsLoading || !indexLoaded || favoritesLoading;
 
-  if (dataLoading) {
-    return (
-      <main className={MAIN_CLASS}>
-        <LoadingCard message="載入收藏中..." />
-      </main>
-    );
-  }
+  if (dataLoading) return loadingGuard(MAIN_CLASS, "載入收藏中...");
 
   const brandMap = new Map(brands.map((b) => [b.slug, b]));
   const drinkMap = new Map(drinks.map((d) => [d.id, d]));

@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "bobalog-181fb"
+  },
+  "targets": {},
+  "etags": {
+    "bobalog-181fb": {
+      "extensionInstances": {
+        "firestore-algolia-search": "4094e89b6ad289e4be587fca8cab692824d821a088ccdb10a3e607b8690677b5"
+      }
+    }
   }
 }

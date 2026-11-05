@@ -1,10 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
-import type { SearchBrand, SearchDrink } from "@/lib/hooks/useSearchIndex";
+import type { AlgoliaBrandHit, AlgoliaDrinkHit } from "@/lib/hooks/useAlgoliaSearch";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 
-// 跟v0生成的樣式統一用同一套hex色(深褐邊框陰影#3C332B/米白卡片#F6F2EA/抹茶綠#A6C285)
 //把搜尋到的關鍵字標綠色
 function highlightMatch(text: string, term: string) {
   if (!term) return text;
@@ -23,10 +22,14 @@ export default function SearchDropdown({
   term,
   matchedBrands,
   matchedDrinks,
+  searching,
+  searchError,
 }: {
   term: string;
-  matchedBrands: SearchBrand[];
-  matchedDrinks: SearchDrink[];
+  matchedBrands: AlgoliaBrandHit[];
+  matchedDrinks: AlgoliaDrinkHit[];
+  searching: boolean;
+  searchError: boolean;
 }) {
 
   if (!term) {
@@ -42,7 +45,15 @@ export default function SearchDropdown({
   return (
     <div className={`${STICKER_CARD_BASE} absolute top-full mt-3 w-full shadow-[6px_6px_0_0_#3C332B] overflow-hidden z-30`}>
       <div className="max-h-[60vh] overflow-y-auto py-2">
-      {!hasResults && (
+      {/* 優先順序:searching(還在查) > searchError(查詢失敗) > 真的查無結果,
+          避免還沒查完或查失敗時,被誤會成「查完了但真的沒有這個品牌或飲料」 */}
+      {!hasResults && searching && (
+        <div className="px-5 py-6 text-center text-sm font-medium text-[#6B5D4F]">搜尋中...</div>
+      )}
+      {!hasResults && !searching && searchError && (
+        <div className="px-5 py-6 text-center text-sm font-medium text-[#6B5D4F]">搜尋發生錯誤,請稍後再試</div>
+      )}
+      {!hasResults && !searching && !searchError && (
         <div className="px-5 py-6 text-center text-sm font-medium text-[#6B5D4F]">找不到相關品牌或飲料</div>
       )}
         {/* 品牌結果區塊 */}

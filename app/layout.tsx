@@ -5,6 +5,7 @@ import NavBar from "@/components/nav/nav-bar";
 import Footer from "@/components/footer";
 import BadgeUnlockToast from "@/components/badges/badge-unlock-toast";
 import ChatPanel from "@/components/chat/chat-panel";
+import { CurrentUserProvider } from "@/lib/hooks/useCurrentUser";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,11 +33,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           這就是地圖頁空白的原因。Grid的1fr中間那格高度是直接算出來的,main不用再包一層div,
           地圖的flex-1/height:100%才吃得到實際的高度。 */}
       <body className="min-h-screen w-full overflow-x-hidden grid grid-rows-[auto_1fr_auto]">
-        <NavBar />
-        {children}
-        <Footer />
-        <BadgeUnlockToast />
-        <ChatPanel />
+        {/* CurrentUserProvider本身(跟Context.Provider一樣)不會產生額外的DOM節點,
+            所以包在這裡不會打斷body這個CSS Grid跟它底下NavBar/main/Footer的對應關係 */}
+        <CurrentUserProvider>
+          <NavBar />
+          {children}
+          <Footer />
+          <BadgeUnlockToast />
+          <ChatPanel />
+        </CurrentUserProvider>
       </body>
     </html>
   );

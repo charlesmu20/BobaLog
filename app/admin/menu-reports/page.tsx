@@ -5,7 +5,7 @@ import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useMenuReports } from "@/lib/hooks/useMenuReports";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
-import LoadingCard from "@/components/loading-card";
+import { loadingGuard } from "@/components/async-guard";
 import MenuReportSidebar from "@/components/admin/menu-report-sidebar";
 import MenuReportDetail from "@/components/admin/menu-report-detail";
 
@@ -40,13 +40,7 @@ export default function MenuReportAdminPage() {
     if (firstPending) setSelectedId(firstPending.id);
   }, [reports, selectedId]);
 
-  if (checkingAuth || checkingAdmin) {
-    return (
-      <main className={MAIN_CLASS}>
-        <LoadingCard message="確認權限中..." />
-      </main>
-    );
-  }
+  if (checkingAuth || checkingAdmin) return loadingGuard(MAIN_CLASS, "確認權限中...");
 
   if (!user) return null;
 
@@ -54,13 +48,7 @@ export default function MenuReportAdminPage() {
   // 避免redirect生效前先閃一下「沒有權限」的畫面
   if (!isAdmin) return null;
 
-  if (loading) {
-    return (
-      <main className={MAIN_CLASS}>
-        <LoadingCard message="載入回報中..." />
-      </main>
-    );
-  }
+  if (loading) return loadingGuard(MAIN_CLASS, "載入回報中...");
 
   const selectedReport = reports.find((r) => r.id === selectedId) ?? null;
 

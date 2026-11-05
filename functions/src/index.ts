@@ -11,6 +11,7 @@ import { resolveChatAssistant } from "./chatAssistant/chatAssistant";
 import { compareMenuPhoto } from "./menuReport/compareMenuPhoto";
 import { applyMenuReportChanges } from "./menuReport/applyMenuReportChanges";
 import { revertAllAppliedChanges } from "./menuReport/revertAllAppliedChanges";
+import { onDrinkWrittenSyncAlgolia } from "./search/syncDrinksToAlgolia";
 
 admin.initializeApp();
 
@@ -181,3 +182,9 @@ export const revertAllMenuReportChanges = onCall({ region: "asia-east1" }, async
     }
     return await revertAllAppliedChanges(admin.firestore(), reportId);
 });
+
+// ========== 首頁搜尋改用Algolia:drinks子collection同步 ==========
+// brands collection本身交給Firebase的「Search with Algolia」擴充功能自動同步,
+// 這支是drinks那塊(擴充功能沒辦法處理子collection+補上父層品牌資訊),
+// 觸發邏輯寫在search/syncDrinksToAlgolia.ts,這裡只負責重新匯出讓它被部署
+export { onDrinkWrittenSyncAlgolia };

@@ -7,13 +7,12 @@ import { useBrandRatings } from "@/lib/hooks/useRating";
 import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
 import type { Drink } from "@/lib/brands";
 import BrandMenuHeader from "@/components/brand-menu/brand-menu-header";
-import SearchInput from "@/components/search-input";
+import MenuSearchInput from "@/components/brand-menu/menu-search-input";
 import BrandMenuTabs from "@/components/brand-menu/brand-menu-tabs";
 import BrandMenuList from "@/components/brand-menu/brand-menu-list";
 import LoginRequiredModal from "@/components/login-required-modal";
 import ReportModal from "@/components/report/report-modal";
-import LoadingCard from "@/components/loading-card";
-import ErrorCard from "@/components/error-card";
+import { loadingGuard, errorGuard } from "@/components/async-guard";
 import SuccessToast from "@/components/ui/success-toast";
 import { useSuccessToast } from "@/lib/hooks/useSuccessToast";
 
@@ -37,31 +36,13 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { toast, showToast } = useSuccessToast();
 
-  if (brandLoading) {
-    return (
-      <main className={MAIN_CLASS}>
-        <LoadingCard />
-      </main>
-    );
-  }
+  if (brandLoading) return loadingGuard(MAIN_CLASS);
 
   // 抓取失敗(離線、網路問題等):可以重試
-  if (brandError) {
-    return (
-      <main className={MAIN_CLASS}>
-        <ErrorCard title="品牌資料載入失敗" onRetry={retry} />
-      </main>
-    );
-  }
+  if (brandError) return errorGuard(MAIN_CLASS, "品牌資料載入失敗", undefined, retry);
 
   // 查無此品牌(網址打錯、品牌下架):重試沒有意義,不給重試按鈕
-  if (!brand) {
-    return (
-      <main className={MAIN_CLASS}>
-        <ErrorCard title="找不到這個品牌" description="這個品牌可能已經下架或網址有誤" />
-      </main>
-    );
-  }
+  if (!brand) return errorGuard(MAIN_CLASS, "找不到這個品牌", "這個品牌可能已經下架或網址有誤");
   // 點擊「收藏品牌」按鈕時執行的函式。加入/取消收藏都要跳不同的提示文字,
   // 所以要在實際呼叫toggle之前先記下目前的收藏狀態
   const handleToggleBrandFavorite = () => {
@@ -140,7 +121,7 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
       />
 			{/* 搜尋框 */}
       <div className="mb-5">
-        <SearchInput variant="compact" value={search} onChange={setSearch} placeholder="搜尋這個品牌的飲料..." />
+        <MenuSearchInput value={search} onChange={setSearch} placeholder="搜尋這個品牌的飲料..." />
       </div>
 			{/* 分類標籤列 */}
       <BrandMenuTabs categories={allCategories} onSelect={scrollToCategory} />

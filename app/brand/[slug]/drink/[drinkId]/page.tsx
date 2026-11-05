@@ -14,8 +14,7 @@ import RatingStars, { StaticStars } from "@/components/drink/rating-stars";
 import CommentSection from "@/components/drink/comment-section";
 import LoginRequiredModal from "@/components/login-required-modal";
 import ReportModal from "@/components/report/report-modal";
-import LoadingCard from "@/components/loading-card";
-import ErrorCard from "@/components/error-card";
+import { loadingGuard, errorGuard } from "@/components/async-guard";
 import SuccessToast from "@/components/ui/success-toast";
 
 const MAIN_CLASS = "w-full min-w-0 max-w-6xl mx-auto px-2.5 py-6 min-h-screen min-[760px]:px-6";
@@ -38,41 +37,17 @@ export default function DrinkCommentPage({
   // 回報表單的品牌下拉選單要給完整品牌清單,跟brand-menu-header.tsx那邊同一個hook
   const { brands: brandSummaries } = useBrandSummaries();
 
-  if (brandLoading) {
-    return (
-      <main className={MAIN_CLASS}>
-        <LoadingCard />
-      </main>
-    );
-  }
+  if (brandLoading) return loadingGuard(MAIN_CLASS);
 
   // 抓取失敗(離線、網路問題等):可以重試
-  if (brandError) {
-    return (
-      <main className={MAIN_CLASS}>
-        <ErrorCard title="品牌資料載入失敗" onRetry={retry} />
-      </main>
-    );
-  }
+  if (brandError) return errorGuard(MAIN_CLASS, "品牌資料載入失敗", undefined, retry);
 
   // 查無此品牌(網址打錯、品牌下架):重試沒有意義,不給重試按鈕
-  if (!brand) {
-    return (
-      <main className={MAIN_CLASS}>
-        <ErrorCard title="找不到這個品牌" description="這個品牌可能已經下架或網址有誤" />
-      </main>
-    );
-  }
+  if (!brand) return errorGuard(MAIN_CLASS, "找不到這個品牌", "這個品牌可能已經下架或網址有誤");
 
   const drink = brand.drinks.find((d) => d.id === drinkId);
 
-  if (!drink) {
-    return (
-      <main className={MAIN_CLASS}>
-        <ErrorCard title="找不到這杯飲料" description="這杯飲料可能已經下架或網址有誤" />
-      </main>
-    );
-  }
+  if (!drink) return errorGuard(MAIN_CLASS, "找不到這杯飲料", "這杯飲料可能已經下架或網址有誤");
 
   const sameSizePrice = drink.prices.M === drink.prices.L;
 
