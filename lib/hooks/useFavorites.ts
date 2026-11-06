@@ -119,3 +119,29 @@ export function useFavorites(uid: string | null) {
     reorderDrinkFavorites,
   };
 }
+
+// 全站有幾個人收藏這個品牌/這杯飲料,跟useRatings算評分人數同一招:
+// 不管是誰收藏的,直接算查詢回來的文件數量就好,不用管裡面每一筆的內容
+export function useBrandFavoriteCount(slug: string) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const q = query(collection(db, "favoriteBrands"), where("slug", "==", slug));
+    const unsubscribe = onSnapshot(q, (snapshot) => setCount(snapshot.size));
+    return () => unsubscribe();
+  }, [slug]);
+
+  return count;
+}
+
+export function useDrinkFavoriteCount(drinkId: string) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const q = query(collection(db, "favoriteDrinks"), where("drinkId", "==", drinkId));
+    const unsubscribe = onSnapshot(q, (snapshot) => setCount(snapshot.size));
+    return () => unsubscribe();
+  }, [drinkId]);
+
+  return count;
+}

@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Store, CupSoda } from "lucide-react";
 import {
@@ -57,10 +57,22 @@ function EmptyState({ variant }: { variant: "brand" | "drink" }) {
   );
 }
 
+// 外層包一層Suspense:useSearchParams()在App Router底下沒有Suspense包住的話,
+// 頁面沒辦法走靜態預渲染,Next build會噴錯——實際的頁面內容搬進FavoritesPageInner,
+// 這支只負責讀網址上的?tab=brand/drink(從個人資料頁點「已收藏品牌/飲料」連過來時帶的參數)
 export default function FavoritesPage() {
+  return (
+    <Suspense fallback={loadingGuard(MAIN_CLASS)}>
+      <FavoritesPageInner />
+    </Suspense>
+  );
+}
+
+function FavoritesPageInner() {
   const { user, checkingAuth } = useCurrentUser();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"brand" | "drink">("brand");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"brand" | "drink">(searchParams.get("tab") === "drink" ? "drink" : "brand");
 
   const { brands, brandsLoading } = useBrandSummaries();
   const { drinks, indexLoaded, loadIndex } = useSearchIndex();

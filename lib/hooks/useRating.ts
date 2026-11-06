@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { collection, query, where, onSnapshot, doc, setDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export function useRatings(brandSlug: string, drinkId: string, uid: string | null) {
@@ -42,7 +42,14 @@ export function useRatings(brandSlug: string, drinkId: string, uid: string | nul
     await setDoc(ref, { uid, brandSlug, drinkId, rating, createdAt: Date.now() });
   };
 
-  return { average, count: ratings.length, myRating, submitRating };
+  // 取消自己的評分:直接把那份文件刪掉,onSnapshot會自動把myRating變回null
+  const clearRating = async () => {
+    if (!uid) return;
+    const ref = doc(db, "ratings", `${uid}_${drinkId}`);
+    await deleteDoc(ref);
+  };
+
+  return { average, count: ratings.length, myRating, submitRating, clearRating };
 }
 
 export type DrinkRatingSummary = { average: number; count: number };

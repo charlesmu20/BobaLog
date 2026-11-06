@@ -2,8 +2,9 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { syncUserProfile } from "@/lib/user-profile";
 
-type CurrentUserValue = { user: User | null; checkingAuth: boolean };
+type CurrentUserValue = { user: User | null; checkingAuth: boolean; refreshUser: () => Promise<void> };
 
 // 全站只在CurrentUserProvider這裡訂閱一次onAuthStateChanged,
 // 不管底下有幾個元件呼叫useCurrentUser(),都是從同一份Context拿結果,
@@ -18,12 +19,30 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setCheckingAuth(false);
+      // 每次登入狀態確定有人(含signup、登入、重新整理後恢復session)就同步一次公開名字快照,
+      // 不用等使用者特地去改名字那個畫面才第一次建立users/{uid}文件
+      if (currentUser) void syncUserProfile(currentUser);
     });
     return () => unsubscribe();
   }, []);
 
+  // 個人資料頁改名字/換頭貼後呼叫:reload()會更新auth.currentUser內部的資料,
+  // 但不會自動觸發onAuthStateChanged重新發送一次,所以要手動把新資料寫回state畫面才會更新。
+  // 用Object.create保留原本的prototype(reload/getIdToken這些方法還能用),
+  // 只是包成一個新的物件參照,讓React的reference比較能偵測到變化
+  const refreshUser = async () => {
+    if (!auth.currentUser) return;
+    await auth.currentUser.reload();
+    const current = auth.currentUser;
+    if (current) {
+      setUser(Object.assign(Object.create(Object.getPrototypeOf(current)), current));
+      // 改名字/換頭貼後,同步更新一次公開名字快照,留言那邊才能即時查到新名字
+      void syncUserProfile(current);
+    }
+  };
+
   return (
-    <CurrentUserContext.Provider value={{ user, checkingAuth }}>
+    <CurrentUserContext.Provider value={{ user, checkingAuth, refreshUser }}>
       {children}
     </CurrentUserContext.Provider>
   );

@@ -13,7 +13,7 @@ async function fetchBrands(): Promise<Brand[]> {
   return Promise.all(
     brandsSnapshot.docs.map(async (brandDoc) => {
       const drinksSnapshot = await getDocs(collection(db, "brands", brandDoc.id, "drinks"));
-      const drinks = drinksSnapshot.docs.map((d) => d.data() as Drink);
+      const drinks = drinksSnapshot.docs.map((d) => ({ ...(d.data() as Drink), id: d.id }));
       return { ...brandDoc.data(), drinks } as Brand;
     })
   );

@@ -23,10 +23,11 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
-    // favoriteBrands / favoriteDrinks:只能讀寫自己uid的收藏。update只給拖曳排序用,
-    // 只能改order欄位,uid不能被換成別人(避免奪取別人的收藏文件)
+    // favoriteBrands / favoriteDrinks:大家都能讀(要算「幾個人收藏」給所有人看),
+    // 但只能寫自己uid的收藏。update只給拖曳排序用,只能改order欄位,
+    // uid不能被換成別人(避免奪取別人的收藏文件)
     match /favoriteBrands/{docId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
       allow update: if request.auth != null
         && request.auth.uid == resource.data.uid
@@ -35,7 +36,7 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
     match /favoriteDrinks/{docId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
       allow update: if request.auth != null
         && request.auth.uid == resource.data.uid
@@ -44,12 +45,12 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
-    // ratings:大家都能讀(平均分數要給所有人看),但只能寫自己uid那筆,目前沒有刪除評分的功能所以先擋掉
+    // ratings:大家都能讀(平均分數要給所有人看),只能寫/刪自己uid那筆(可以取消評分)
     match /ratings/{docId} {
       allow read: if true;
       allow create, update: if request.auth != null
         && request.auth.uid == request.resource.data.uid;
-      allow delete: if false;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
     // comments:大家都能讀,登入才能新增,也能編輯/刪除自己的留言
@@ -60,6 +61,22 @@ service cloud.firestore {
         && request.auth.uid == resource.data.uid
         && request.auth.uid == request.resource.data.uid;
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
+    // users:公開的「目前顯示名稱/頭貼」快照。comments原本把displayName存成發文當下的快照,
+    // 改名字/換頭貼不會回頭更新舊留言——所以加這個collection,畫面顯示留言者名字/頭像時改成
+    // 查這裡目前的值(即時),而不是用留言文件裡存的那份舊快照。
+    // 登入/改名字/換頭貼時由lib/user-profile.ts的syncUserProfile同步過來,
+    // 只存displayName跟photoURL這兩個欄位。大家都能讀,但只能寫自己的uid,
+    // 而且只能寫這兩個欄位,不能夾帶別的資料進來
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(["displayName", "photoURL"]);
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["displayName", "photoURL"]);
     }
 
     // userBadges:只能讀自己解鎖的勳章,前端完全不能寫,

@@ -29,7 +29,9 @@ function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn(
-        "aspect-square size-full rounded-full object-cover",
+        // 圖片載入完成第一次出現時淡入,不要整個從圖示直接跳成照片——
+        // data-starting-style是Base UI在圖片剛掛載時會加上的屬性,專門給enter animation用
+        "aspect-square size-full rounded-full object-cover opacity-100 transition-opacity duration-300 data-[starting-style]:opacity-0",
         className
       )}
       {...props}

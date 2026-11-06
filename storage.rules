@@ -1,8 +1,8 @@
 rules_version = '2';
 
 // 這份檔案跟Firebase Console網頁上「Storage > 規則」頁面的內容要保持一致,
-// 跟firestore.rules是同一套做法。目前整個專案只有菜單回報功能的照片上傳用到Storage,
-// 之後如果有別的功能也要用,再加新的match區塊,不要把這個路徑放寬成什麼都收。
+// 跟firestore.rules是同一套做法。每個功能用到的路徑各自開一個match區塊,
+// 之後如果有別的功能也要用,再加新的match,不要把既有的路徑放寬成什麼都收。
 service firebase.storage {
   match /b/{bucket}/o {
     // reportPhotos/{uid}/{fileName}:菜單回報附的照片。讀取開放給所有人——
@@ -11,6 +11,18 @@ service firebase.storage {
     // Cloud Function處理。但只有本人能寫進自己uid底下那個資料夾,且限制檔案大小
     // (5MB)跟一定要是圖片類型,避免被亂塞別的檔案進來
     match /reportPhotos/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // avatars/{uid}/{fileName}:個人資料頁的頭貼。讀取開放給所有人——
+    // 頭貼本來就是要給別人看的(留言、收藏等地方都可能顯示),開放讀取才能直接用
+    // getDownloadURL()存進Auth帳號的photoURL欄位。只有本人能寫進自己uid底下那個資料夾,
+    // 限制同樣是5MB跟一定要是圖片類型,跟reportPhotos同一套邏輯
+    match /avatars/{uid}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null
         && request.auth.uid == uid

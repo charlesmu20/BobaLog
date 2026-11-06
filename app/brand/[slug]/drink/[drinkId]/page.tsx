@@ -2,12 +2,14 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Heart, Flag } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { FavoriteHeartButton } from "@/components/ui/favorite-heart-button";
+import { ReportButton } from "@/components/ui/report-button";
 import { useBrand } from "@/lib/hooks/useBrand";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
-import { useFavorites } from "@/lib/hooks/useFavorites";
+import { useFavorites, useDrinkFavoriteCount } from "@/lib/hooks/useFavorites";
 import { useRatings } from "@/lib/hooks/useRating";
-import { useComments } from "@/lib/hooks/useComments";
+import { useComments, editComment, deleteComment } from "@/lib/hooks/useComments";
 import { useSuccessToast } from "@/lib/hooks/useSuccessToast";
 import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
 import RatingStars, { StaticStars } from "@/components/drink/rating-stars";
@@ -16,6 +18,8 @@ import LoginRequiredModal from "@/components/login-required-modal";
 import ReportModal from "@/components/report/report-modal";
 import { loadingGuard, errorGuard } from "@/components/async-guard";
 import SuccessToast from "@/components/ui/success-toast";
+import { requireLogin } from "@/lib/login-guard";
+import { useFavoriteToggle } from "@/lib/hooks/useFavoriteToggle";
 
 const MAIN_CLASS = "w-full min-w-0 max-w-6xl mx-auto px-2.5 py-6 min-h-screen min-[760px]:px-6";
 
@@ -28,14 +32,17 @@ export default function DrinkCommentPage({
   const { brand, brandLoading, brandError, retry } = useBrand(slug);
   const { user } = useCurrentUser();
   // 評分資料跟登入狀態要放在最上面、兩個提早return之前,不然畫面切換時hook呼叫數量會對不上
-  const { average, count, myRating, submitRating } = useRatings(slug, drinkId, user?.uid ?? null);
+  const { average, count, myRating, submitRating, clearRating } = useRatings(slug, drinkId, user?.uid ?? null);
   const { comments, submitComment } = useComments(slug, drinkId, user?.uid ?? null);
   const { isDrinkFavorited, toggleDrinkFavorite } = useFavorites(user?.uid ?? null);
+  const drinkFavoriteCount = useDrinkFavoriteCount(drinkId);
   const { toast, showToast } = useSuccessToast();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   // 回報表單的品牌下拉選單要給完整品牌清單,跟brand-menu-header.tsx那邊同一個hook
   const { brands: brandSummaries } = useBrandSummaries();
+  // 沒登入就彈登入視窗,已登入才真的切換收藏+跳提示,跟菜單頁共用同一套邏輯
+  const toggleFavoriteWithToast = useFavoriteToggle(user, () => setShowLoginModal(true), showToast);
 
   if (brandLoading) return loadingGuard(MAIN_CLASS);
 
@@ -51,38 +58,42 @@ export default function DrinkCommentPage({
 
   const sameSizePrice = drink.prices.M === drink.prices.L;
 
-  // 點星星時執行的函式:沒登入就彈登入視窗、擋下來不送出;有登入才真的呼叫submitRating存進Firestore
+  // 點星星時執行的函式:沒登入就彈登入視窗、擋下來不送出;
+  // 點的剛好是自己目前已評的那顆星星,視為「取消評分」,否則才是正常送出/更新分數
   const handleRate = (rating: number) => {
-    if (!user) {
-      setShowLoginModal(true);
+    if (!requireLogin(user, () => setShowLoginModal(true))) return;
+    if (rating === myRating) {
+      clearRating();
       return;
     }
     submitRating(rating);
   };
 
-  // 送出留言時執行的函式:把目前使用者的名字(沒有就用「匿名」頂著)跟留言內容一起存進去
+  // 送出留言時執行的函式:把目前使用者的名字(沒有就用「匿名」頂著)、頭貼網址、留言內容一起存進去。
+  // 名字/頭貼都只是發文當下的快照,畫面顯示時會被useComments裡即時查到的最新資料蓋過去,
+  // 這裡存的只是在那之前(或查不到)能先墊著用的版本
   const handleSubmitComment = (text: string) => {
-    submitComment(user?.displayName ?? "匿名", text);
+    submitComment(user?.displayName ?? "匿名", user?.photoURL ?? null, text);
+  };
+
+  // 編輯/刪除留言:規則已經限制只能動自己uid的文件,這裡不用再檢查一次
+  const handleEditComment = (commentId: string, text: string) => {
+    editComment(commentId, text);
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    deleteComment(commentId);
   };
 
   // 點收藏愛心時執行的函式,跟菜單頁同一套邏輯:沒登入就彈登入視窗;
   // 加入/取消收藏都跳提示,文字不同
   const handleToggleFavorite = () => {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-    const wasFavorited = isDrinkFavorited(slug, drinkId);
-    toggleDrinkFavorite(slug, drinkId);
-    showToast(wasFavorited ? "已取消收藏" : "已加入收藏");
+    toggleFavoriteWithToast(isDrinkFavorited(slug, drinkId), () => toggleDrinkFavorite(slug, drinkId));
   };
 
   // 點回報按鈕時執行的函式,跟收藏同一套登入檢查邏輯
   const handleOpenReport = () => {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
+    if (!requireLogin(user, () => setShowLoginModal(true))) return;
     setShowReportModal(true);
   };
 
@@ -116,29 +127,16 @@ export default function DrinkCommentPage({
                 <Image src={brand.icon} alt={brand.name} fill sizes="40px" className="object-cover" />
               </div>
               <span className="text-sm font-bold text-[#6B5D4F]">{brand.name}</span>
+              <ReportButton onClick={handleOpenReport} label="回報問題" />
             </div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black leading-tight text-[#3C332B]">{drink.name}</h1>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  onClick={handleToggleFavorite}
-                  aria-label="收藏這杯飲料"
-                  className="w-9 h-9 rounded-full bg-[#F6F2EA] border-[3px] border-[#3C332B] flex items-center justify-center flex-shrink-0 cursor-pointer transition-transform hover:-translate-y-0.5"
-                >
-                  <Heart
-                    className="w-4 h-4"
-                    style={{ color: "#3C332B" }}
-                    fill={isDrinkFavorited(slug, drinkId) ? "#A6C285" : "none"}
-                  />
-                </button>
-                <button
-                  onClick={handleOpenReport}
-                  className="h-9 shrink-0 cursor-pointer rounded-full border-[3px] border-[#3C332B] bg-[#F6F2EA] flex items-center gap-1.5 px-3 transition-transform hover:-translate-y-0.5"
-                >
-                  <Flag className="w-4 h-4 shrink-0" style={{ color: "#3C332B" }} />
-                  <span className="whitespace-nowrap text-xs font-bold text-[#3C332B]">回報問題</span>
-                </button>
-              </div>
+              <FavoriteHeartButton
+                isFavorited={isDrinkFavorited(slug, drinkId)}
+                count={drinkFavoriteCount}
+                onClick={handleToggleFavorite}
+                ariaLabel={isDrinkFavorited(slug, drinkId) ? "取消收藏這杯飲料" : "收藏這杯飲料"}
+              />
             </div>
             <ul aria-label="價格" className="flex flex-wrap gap-2">
               {sameSizePrice ? (
@@ -194,8 +192,11 @@ export default function DrinkCommentPage({
         <CommentSection
           comments={comments}
           isLoggedIn={!!user}
+          currentUid={user?.uid ?? null}
           onSubmit={handleSubmitComment}
           onRequireLogin={() => setShowLoginModal(true)}
+          onEdit={handleEditComment}
+          onDelete={handleDeleteComment}
         />
       </section>
 

@@ -70,7 +70,7 @@ export default function NavBar() {
     // 高度寫死成「nav收合時」的實際高度(border 6px + 內距 + logo 42px 算出來的),
     // nav本身永遠absolute浮在裡面,不管選單開不開,這塊高度都不會變——
     // 這樣選單展開只是視覺上蓋過去,不會推動下面的Hero,也不會有「容器塌下去再補回來」的閃爍風險。
-    <div className="sticky top-0 z-40 w-full min-w-0 max-w-6xl mx-auto h-[84px] min-[760px]:h-[92px]">
+    <div className="sticky top-0 z-40 w-full min-w-0 max-w-6xl mx-auto h-[100px] min-[760px]:h-[108px]">
       <nav
         ref={navRef}
         className={`absolute left-2.5 right-2.5 top-3 overflow-hidden bg-white rounded-2xl border-[3px] border-[#3C332B] transition-shadow duration-200 min-[760px]:left-6 min-[760px]:right-6 ${

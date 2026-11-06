@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
-import { User } from "lucide-react";
+import { User, Pencil, Trash2 } from "lucide-react";
 import type { Comment } from "@/lib/hooks/useComments";
 import { Textarea } from "@/components/ui/textarea";
 import { STICKER_BUTTON_BASE } from "@/lib/sticker-button";
+import ConfirmDialog from "@/components/log/confirm-dialog";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const MAX_LENGTH = 200;
 
@@ -22,16 +24,38 @@ function formatRelativeTime(timestamp: number) {
 export default function CommentSection({
   comments,
   isLoggedIn,
+  currentUid,
   onSubmit,
   onRequireLogin,
+  onEdit,
+  onDelete,
 }: {
   comments: Comment[];
   isLoggedIn: boolean;
+  currentUid: string | null;
   onSubmit: (text: string) => void;
   onRequireLogin: () => void;
+  onEdit: (commentId: string, text: string) => void;
+  onDelete: (commentId: string) => void;
 }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
+  // 正在編輯哪一則留言(行內切換成textarea),跟哪一則留言正要被刪除(跳確認彈窗)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const startEdit = (c: Comment) => {
+    setEditingId(c.id);
+    setEditText(c.text);
+  };
+
+  const saveEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed) return;
+    onEdit(editingId as string, trimmed);
+    setEditingId(null);
+  };
 
   const handleSubmit = () => {
     if (!isLoggedIn) {
@@ -76,24 +100,87 @@ export default function CommentSection({
         {comments.length === 0 ? (
           <p className="text-xs text-[#6B5D4F]">還沒有留言,來留下第一則吧</p>
         ) : (
-          comments.map((c) => (
-            // key用c.id,舊留言不會重新mount、新留言第一次出現時才會播放這個進場動畫,
-            // 不會每次有人留言畫面上所有留言就整排一起閃一次
-            <div key={c.id} className="flex gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="w-8 h-8 rounded-full border-2 border-[#3C332B] bg-white flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4" style={{ color: "#3C332B" }} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-bold text-[#3C332B]">{c.displayName}</span>
-                  <span className="text-xs text-[#6B5D4F]">{formatRelativeTime(c.createdAt)}</span>
+          comments.map((c) => {
+            const isMine = currentUid !== null && c.uid === currentUid;
+            const isEditing = editingId === c.id;
+            return (
+              // key用c.id,舊留言不會重新mount、新留言第一次出現時才會播放這個進場動畫,
+              // 不會每次有人留言畫面上所有留言就整排一起閃一次
+              <div key={c.id} className="flex gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <Avatar className="w-8 h-8 border-2 border-[#3C332B] flex-shrink-0">
+                  <AvatarImage src={c.photoURL ?? undefined} alt={c.displayName} />
+                  <AvatarFallback className="bg-white">
+                    <User className="w-4 h-4" style={{ color: "#3C332B" }} />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-[#3C332B]">{c.displayName}</span>
+                    <span className="text-xs text-[#6B5D4F]">{formatRelativeTime(c.createdAt)}</span>
+                    {/* 只有自己的留言才看得到編輯/刪除,別人的留言完全不會出現這兩顆按鈕 */}
+                    {isMine && !isEditing && (
+                      <div className="flex items-center gap-0.5 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(c)}
+                          aria-label="編輯留言"
+                          className="cursor-pointer rounded-md p-1 text-[#9A8B7A] transition-colors hover:bg-[#F6EFE4] hover:text-[#3C332B]"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingId(c.id)}
+                          aria-label="刪除留言"
+                          className="cursor-pointer rounded-md p-1 text-[#9A8B7A] transition-colors hover:bg-[#F6EFE4] hover:text-[#A3372B]"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {isEditing ? (
+                    <div className="mt-1">
+                      <Textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        className="min-h-[50px] resize-none rounded-xl border-[3px] border-[#3C332B] bg-white text-sm text-[#3C332B] focus-visible:border-[#3C332B] focus-visible:ring-0"
+                      />
+                      <div className="flex justify-end gap-2 mt-1.5">
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="rounded-full border-2 border-[#3C332B] bg-white px-3 py-1 text-xs font-medium text-[#4A3424] cursor-pointer transition-colors hover:bg-[#F6EFE4]"
+                        >
+                          取消
+                        </button>
+                        <button
+                          onClick={saveEdit}
+                          className={`${STICKER_BUTTON_BASE} rounded-full px-3 py-1 text-xs`}
+                        >
+                          儲存
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#3C332B] mt-0.5 break-words">{c.text}</p>
+                  )}
                 </div>
-                <p className="text-sm text-[#3C332B] mt-0.5 break-words">{c.text}</p>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {deletingId && (
+        <ConfirmDialog
+          message="確定要刪除這則留言嗎?"
+          onCancel={() => setDeletingId(null)}
+          onConfirm={() => {
+            onDelete(deletingId);
+            setDeletingId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
