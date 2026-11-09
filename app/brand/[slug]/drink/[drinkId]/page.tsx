@@ -32,8 +32,8 @@ export default function DrinkCommentPage({
   const { brand, brandLoading, brandError, retry } = useBrand(slug);
   const { user } = useCurrentUser();
   // 評分資料跟登入狀態要放在最上面、兩個提早return之前,不然畫面切換時hook呼叫數量會對不上
-  const { average, count, myRating, submitRating, clearRating } = useRatings(slug, drinkId, user?.uid ?? null);
-  const { comments, submitComment } = useComments(slug, drinkId, user?.uid ?? null);
+  const { average, count, myRating, ratingsError, submitRating, clearRating } = useRatings(slug, drinkId, user?.uid ?? null);
+  const { comments, commentsError, submitComment } = useComments(slug, drinkId, user?.uid ?? null);
   const { isDrinkFavorited, toggleDrinkFavorite } = useFavorites(user?.uid ?? null);
   const drinkFavoriteCount = useDrinkFavoriteCount(drinkId);
   const { toast, showToast } = useSuccessToast();
@@ -162,7 +162,12 @@ export default function DrinkCommentPage({
               <span className="text-xs font-bold tracking-wide text-[#6B5D4F]">平均評分</span>
               {/* 標題列固定h-9高度,「尚無評分」/實際分數兩種狀態共用同一個高度,
                   使用者剛評分時(count從0變1)框框才不會跟著跳動 */}
-              {count > 0 ? (
+              {/* ratingsError優先判斷:監聽失敗時count也會是0,不能讓它被誤判成「真的尚無評分」 */}
+              {ratingsError ? (
+                <div className="flex h-9 items-center">
+                  <span className="text-sm font-bold text-red-500">評分載入失敗</span>
+                </div>
+              ) : count > 0 ? (
                 <div className="flex h-9 items-baseline gap-2">
                   <span className="text-3xl font-black leading-none tabular-nums text-[#3C332B]">{average.toFixed(1)}</span>
                   <span className="text-xs text-[#6B5D4F]">({count}人評分)</span>
@@ -191,6 +196,7 @@ export default function DrinkCommentPage({
 
         <CommentSection
           comments={comments}
+          commentsError={commentsError}
           isLoggedIn={!!user}
           currentUid={user?.uid ?? null}
           onSubmit={handleSubmitComment}

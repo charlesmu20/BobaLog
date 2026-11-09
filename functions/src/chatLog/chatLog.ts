@@ -2,8 +2,7 @@
 // 並且判斷「東西夠不夠清楚可以直接存檔」還是「要先回問使用者一句話」。
 
 import type { Firestore } from "firebase-admin/firestore";
-import type { ChatTurn } from "../gemini";
-import { extractLogDraft, type ChatImage, type ExtractedDrink } from "./extractLogDraft";
+import type { ExtractedDrink } from "./extractLogDraft";
 import {
   loadCatalog,
   matchBrand,
@@ -42,29 +41,11 @@ export type ChatLogResult =
       drafts: DraftItem[];
     };
 
-// 【主函式:串接extractLogDraft+catalog.ts,判斷要問還是可以直接確定】
-export async function resolveLogDraft(
-  db: Firestore,
-  apiKey: string,
-  message: string,
-  history: ChatTurn[],
-  image?: ChatImage
-): Promise<ChatLogResult> {
-  // 【先問Gemini,聽懂使用者在說什麼(可能是從照片裡讀出來的)】
-  const extraction = await extractLogDraft(apiKey, message, history, image);
-
-  // 【Gemini自己就覺得不夠清楚,直接把它的話當成question回傳,不用再比對】
-  if (extraction.type === "reply") {
-    return { type: "question", text: extraction.text };
-  }
-
-  return await resolveLogDraftFromItems(db, extraction.items);
-}
-
-// 把「已經知道抽取結果之後」的邏輯(拿真實菜單比對、判斷全部成功還是整批打回去)獨立出來——
-// 統一聊天入口(chatAssistant/routeMessage.ts)會用同一次合併呼叫就抽出items,不需要再讓
-// 這支函式自己重打一次extractLogDraft,直接把items傳進來接著跑就好。resolveLogDraft
-// (上面那支)維持原本單獨呼叫的介面,內部呼叫這支,行為完全不變
+// 把「已經知道抽取結果之後」的邏輯(拿真實菜單比對、判斷全部成功還是整批打回去)獨立出來。
+// 原本這支是給「單獨呼叫的resolveLogDraft」內部用的,那支自己重打一次extractLogDraft再呼叫
+// 這裡——後來統一聊天入口(chatAssistant/routeMessage.ts)改成用同一次合併呼叫就抽出items,
+// 不需要再重打一次extractLogDraft,resolveLogDraft本身也沒有呼叫端在用了,已經整支刪除,
+// 只留這支給chatAssistant.ts呼叫
 export async function resolveLogDraftFromItems(db: Firestore, items: ExtractedDrink[]): Promise<ChatLogResult> {
   // items可能只有1杯,也可能有好幾杯——「要不要先問使用者要記幾杯」這個判斷,
   // 交給Gemini自己依語意決定(見extractLogDraft.ts的LOG_SYSTEM_INSTRUCTION):

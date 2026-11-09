@@ -23,10 +23,12 @@ const MAIN_CLASS = "w-full min-w-0 max-w-6xl mx-auto px-2.5 py-6 min-h-screen mi
 export default function ProfilePage() {
   const { user, checkingAuth, refreshUser } = useCurrentUser();
   const router = useRouter();
-  const { logs } = useLogs(user?.uid ?? null);
-  const { unlockedBadges, badgesLoading } = useUserBadges(user?.uid ?? null);
-  const { favoriteBrandSlugs, favoriteDrinkIds, favoritesLoading } = useFavorites(user?.uid ?? null);
-  const { comments: myComments, commentsLoading } = useMyComments(user?.uid ?? null);
+  const { logs, logsError, retryLogs } = useLogs(user?.uid ?? null);
+  const { unlockedBadges, badgesLoading, badgesError, retryBadges } = useUserBadges();
+  const { favoriteBrandSlugs, favoriteDrinkIds, favoritesLoading, favoritesError, retryFavorites } = useFavorites(
+    user?.uid ?? null
+  );
+  const { comments: myComments, commentsLoading, commentsError, retryComments } = useMyComments(user?.uid ?? null);
   const { brands, brandsLoading, brandsError, retry } = useBrands();
   // 改名字/換頭貼成功跟失敗都借用同一個toast顯示,不另外做一個錯誤用的樣式——
   // 這兩個操作失敗的機率很低,沒必要為此多做一個元件
@@ -88,6 +90,10 @@ export default function ProfilePage() {
   }
 
   if (brandsError) return errorGuard(MAIN_CLASS, "品牌資料載入失敗", undefined, retry);
+  if (badgesError) return errorGuard(MAIN_CLASS, "勳章資料載入失敗", undefined, retryBadges);
+  if (commentsError) return errorGuard(MAIN_CLASS, "留言資料載入失敗", undefined, retryComments);
+  if (favoritesError) return errorGuard(MAIN_CLASS, "收藏資料載入失敗", undefined, retryFavorites);
+  if (logsError) return errorGuard(MAIN_CLASS, "日誌資料載入失敗", undefined, retryLogs);
 
   return (
     <main className={MAIN_CLASS}>

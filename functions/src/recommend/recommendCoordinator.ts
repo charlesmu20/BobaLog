@@ -29,7 +29,6 @@ import { resolveBrandDrinkQuery } from "./recommendCatalog";
 import { buildCandidateDrinks, anyDrinkMatchesKeywords, MAX_TOTAL, type CandidateDrink } from "./candidateDrinks";
 import { resolveLocationName } from "./places";
 import {
-  extractRecommendIntent,
   pickRecommendation,
   buildClarifyingQuestion,
   buildBrandClarifyingQuestion,
@@ -62,31 +61,11 @@ export type RecommendChatResult =
     }
   | { type: "clarify"; text: string; tasteOptions: string[] };
 
-export async function resolveRecommendChat(
-  db: Firestore,
-  geminiApiKey: string,
-  placesApiKey: string,
-  // uid目前沒用到——情境一拿掉收藏判斷之後,這支函式裡沒有任何地方需要知道是哪個使用者。
-  // 還是留著這個參數,保留跟index.ts呼叫端一致的介面,之後如果又要接回收藏或其他
-  // 跟使用者綁定的判斷,不用再改一次呼叫端
-  uid: string,
-  message: string,
-  history: ChatTurn[],
-  userLocation: { lat: number; lng: number } | null
-): Promise<RecommendChatResult> {
-  // ===== 1. 聽懂使用者在講什麼 =====
-  const intent = await extractRecommendIntent(geminiApiKey, message, history);
-  if (intent.type === "reply") {
-    return { type: "reply", text: intent.text };
-  }
-
-  return await resolveRecommendChatFromIntent(db, geminiApiKey, placesApiKey, message, history, userLocation, intent);
-}
-
-// 把「已經知道intent之後」的邏輯(情境判斷、組候選、呼叫Gemini挑選)獨立出來——
-// 統一聊天入口(chatAssistant/routeMessage.ts)會用同一次合併呼叫就抽出intent,
-// 不需要再讓這支函式自己重打一次extractRecommendIntent,直接把intent傳進來接著跑就好。
-// resolveRecommendChat(上面那支)維持原本單獨呼叫的介面,內部呼叫這支,行為完全不變
+// 把「已經知道intent之後」的邏輯(情境判斷、組候選、呼叫Gemini挑選)獨立出來。
+// 原本這支是給「單獨呼叫的resolveRecommendChat」內部用的,那支自己重打一次
+// extractRecommendIntent再呼叫這裡——後來統一聊天入口(chatAssistant/routeMessage.ts)
+// 改成用同一次合併呼叫就抽出intent,不需要再重打一次extractRecommendIntent,
+// resolveRecommendChat本身也沒有呼叫端在用了,已經整支刪除,只留這支給chatAssistant.ts呼叫
 export async function resolveRecommendChatFromIntent(
   db: Firestore,
   geminiApiKey: string,

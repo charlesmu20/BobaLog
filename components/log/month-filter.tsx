@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { formatMonthLabel } from "@/lib/history-utils";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
+import { useClickOutside } from "@/lib/hooks/useClickOutside";
 
 export default function MonthFilter({
   value,
@@ -17,15 +18,7 @@ export default function MonthFilter({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  useClickOutside(ref, () => setOpen(false));
 
   return (
     // 原本這裡有mb-4,是以前MonthFilter自己佔一整排時留的下方間距。

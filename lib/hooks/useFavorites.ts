@@ -11,6 +11,9 @@ export function useFavorites(uid: string | null) {
   const [favoriteDrinkDocs, setFavoriteDrinkDocs] = useState<FavoriteDrinkDoc[]>([]);
   // 第一次onSnapshot回來之前都算loading中,避免收藏頁一進站就先閃一下「還沒收藏任何東西」的空狀態
   const [favoritesLoading, setFavoritesLoading] = useState(true);
+  const [favoritesError, setFavoritesError] = useState(false);
+  // 重試用:改這個值會讓下面的effect重新跑一次,等於重新訂閱一次onSnapshot
+  const [retryToken, setRetryToken] = useState(0);
 
   //沒登入的話就不訂閱資料庫,下面回傳的isBrandFavorited/isDrinkFavorited會直接用uid擋掉、回傳false,
   // 不需要在這裡用setState清空(那樣會被react-hooks/set-state-in-effect標記,
@@ -20,39 +23,71 @@ export function useFavorites(uid: string | null) {
     // 換人登入、準備重新訂閱資料庫時先標記成loading中,避免收藏頁閃一下舊資料或空狀態
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFavoritesLoading(true);
+    setFavoritesError(false);
+
+    // 原本favoritesLoading只靠brandsQuery那條監聽關掉——如果只有drinksQuery失敗,
+    // loading會正常結束,但收藏的飲料清單卻永遠悄悄維持空的,自己不會發現。
+    // 改成兩條都回應過一次(不管成功還是失敗)才真正結束loading
+    let brandsReady = false;
+    let drinksReady = false;
+    const maybeFinishLoading = () => {
+      if (brandsReady && drinksReady) setFavoritesLoading(false);
+    };
+
     // 去 favoriteBrands 這個集合,挑出 uid 欄位等於「現在這個人」的文件
     const brandsQuery = query(collection(db, "favoriteBrands"), where("uid", "==", uid));
     // 資料庫有變化就自動重新執行
-    const unsubscribeBrands = onSnapshot(brandsQuery, (snapshot) => {
-      const docs = snapshot.docs.map((d) => {
-        const data = d.data();
-        // 舊資料(拖曳排序功能上線前就收藏的)沒有order欄位,先用createdAt頂著當排序依據,
-        // 使用者只要拖曳過一次,所有項目就會被改寫成乾淨的0,1,2...整數
-        const order = typeof data.order === "number" ? data.order : (data.createdAt ?? 0);
-        return { slug: data.slug as string, order };
-      });
-      docs.sort((a, b) => a.order - b.order);
-      setFavoriteBrandDocs(docs);
-      setFavoritesLoading(false);
-    });
+    const unsubscribeBrands = onSnapshot(
+      brandsQuery,
+      (snapshot) => {
+        const docs = snapshot.docs.map((d) => {
+          const data = d.data();
+          // 舊資料(拖曳排序功能上線前就收藏的)沒有order欄位,先用createdAt頂著當排序依據,
+          // 使用者只要拖曳過一次,所有項目就會被改寫成乾淨的0,1,2...整數
+          const order = typeof data.order === "number" ? data.order : (data.createdAt ?? 0);
+          return { slug: data.slug as string, order };
+        });
+        docs.sort((a, b) => a.order - b.order);
+        setFavoriteBrandDocs(docs);
+        brandsReady = true;
+        maybeFinishLoading();
+      },
+      (error) => {
+        console.error("favoriteBrands監聽失敗", error);
+        setFavoritesError(true);
+        brandsReady = true;
+        maybeFinishLoading();
+      }
+    );
 
     const drinksQuery = query(collection(db, "favoriteDrinks"), where("uid", "==", uid));
-    const unsubscribeDrinks = onSnapshot(drinksQuery, (snapshot) => {
-      const docs = snapshot.docs.map((d) => {
-        const data = d.data();
-        const order = typeof data.order === "number" ? data.order : (data.createdAt ?? 0);
-        return { brandSlug: data.brandSlug as string, drinkId: data.drinkId as string, order };
-      });
-      docs.sort((a, b) => a.order - b.order);
-      setFavoriteDrinkDocs(docs);
-    });
+    const unsubscribeDrinks = onSnapshot(
+      drinksQuery,
+      (snapshot) => {
+        const docs = snapshot.docs.map((d) => {
+          const data = d.data();
+          const order = typeof data.order === "number" ? data.order : (data.createdAt ?? 0);
+          return { brandSlug: data.brandSlug as string, drinkId: data.drinkId as string, order };
+        });
+        docs.sort((a, b) => a.order - b.order);
+        setFavoriteDrinkDocs(docs);
+        drinksReady = true;
+        maybeFinishLoading();
+      },
+      (error) => {
+        console.error("favoriteDrinks監聽失敗", error);
+        setFavoritesError(true);
+        drinksReady = true;
+        maybeFinishLoading();
+      }
+    );
 
     // 元件消失、或是 uid 變了(換人登入)的時候,把之前的監聽取消掉,避免浪費資源、資料錯亂
     return () => {
       unsubscribeBrands();
       unsubscribeDrinks();
     };
-  }, [uid]);
+  }, [uid, retryToken]);
 
   // 依排序後的順序排列的slug/id陣列,頁面直接拿這個去對應完整的品牌/飲料資料
   const favoriteBrandSlugs = favoriteBrandDocs.map((d) => d.slug);
@@ -111,6 +146,8 @@ export function useFavorites(uid: string | null) {
     favoriteBrandSlugs: uid ? favoriteBrandSlugs : [],
     favoriteDrinkIds: uid ? favoriteDrinkIds : [],
     favoritesLoading,
+    favoritesError,
+    retryFavorites: () => setRetryToken((t) => t + 1),
     isBrandFavorited: (slug: string) => !!uid && favoriteBrandSlugSet.has(slug),
     isDrinkFavorited: (brandSlug: string, drinkId: string) => !!uid && favoriteDrinkIdSet.has(drinkId),
     toggleBrandFavorite,
@@ -127,7 +164,11 @@ export function useBrandFavoriteCount(slug: string) {
 
   useEffect(() => {
     const q = query(collection(db, "favoriteBrands"), where("slug", "==", slug));
-    const unsubscribe = onSnapshot(q, (snapshot) => setCount(snapshot.size));
+    // 這只是個裝飾性小角標,監聽失敗頂多角標停在舊數字,不值得為此做整套錯誤UI,
+    // 但至少console記錄一下方便之後除錯
+    const unsubscribe = onSnapshot(q, (snapshot) => setCount(snapshot.size), (error) =>
+      console.error("brandFavoriteCount監聽失敗", error)
+    );
     return () => unsubscribe();
   }, [slug]);
 
@@ -139,7 +180,9 @@ export function useDrinkFavoriteCount(drinkId: string) {
 
   useEffect(() => {
     const q = query(collection(db, "favoriteDrinks"), where("drinkId", "==", drinkId));
-    const unsubscribe = onSnapshot(q, (snapshot) => setCount(snapshot.size));
+    const unsubscribe = onSnapshot(q, (snapshot) => setCount(snapshot.size), (error) =>
+      console.error("drinkFavoriteCount監聽失敗", error)
+    );
     return () => unsubscribe();
   }, [drinkId]);
 

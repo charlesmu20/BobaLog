@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { User, Pencil, Trash2 } from "lucide-react";
 import type { Comment } from "@/lib/hooks/useComments";
 import { Textarea } from "@/components/ui/textarea";
 import { STICKER_BUTTON_BASE } from "@/lib/sticker-button";
 import ConfirmDialog from "@/components/log/confirm-dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useImagesReady } from "@/lib/hooks/useImagesReady";
 
 const MAX_LENGTH = 200;
 
@@ -23,6 +24,7 @@ function formatRelativeTime(timestamp: number) {
 
 export default function CommentSection({
   comments,
+  commentsError = false,
   isLoggedIn,
   currentUid,
   onSubmit,
@@ -31,6 +33,7 @@ export default function CommentSection({
   onDelete,
 }: {
   comments: Comment[];
+  commentsError?: boolean;
   isLoggedIn: boolean;
   currentUid: string | null;
   onSubmit: (text: string) => void;
@@ -44,6 +47,11 @@ export default function CommentSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // 這批留言的頭貼要等「全部」都預先載入好才一起顯示,不要因為圖片下載
+  // 速度不同,各自隨機先後跳出來(哪一個排視覺上面下面無關)
+  const photoUrls = useMemo(() => comments.map((c) => c.photoURL), [comments]);
+  const avatarsReady = useImagesReady(photoUrls);
 
   const startEdit = (c: Comment) => {
     setEditingId(c.id);
@@ -97,7 +105,11 @@ export default function CommentSection({
       </div>
 
       <div className="flex flex-col gap-4 mt-5">
-        {comments.length === 0 ? (
+        {/* commentsError優先判斷:監聽失敗時comments也會是空陣列,
+            不能讓它被誤判成「還沒有留言」這個正常的空狀態 */}
+        {commentsError ? (
+          <p className="text-xs text-red-500">留言載入失敗,重新整理看看</p>
+        ) : comments.length === 0 ? (
           <p className="text-xs text-[#6B5D4F]">還沒有留言,來留下第一則吧</p>
         ) : (
           comments.map((c) => {
@@ -108,7 +120,7 @@ export default function CommentSection({
               // 不會每次有人留言畫面上所有留言就整排一起閃一次
               <div key={c.id} className="flex gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <Avatar className="w-8 h-8 border-2 border-[#3C332B] flex-shrink-0">
-                  <AvatarImage src={c.photoURL ?? undefined} alt={c.displayName} />
+                  <AvatarImage src={avatarsReady ? (c.photoURL ?? undefined) : undefined} alt={c.displayName} />
                   <AvatarFallback className="bg-white">
                     <User className="w-4 h-4" style={{ color: "#3C332B" }} />
                   </AvatarFallback>

@@ -10,6 +10,8 @@ export function getErrorMessage(code: string): string {
       return "信箱或密碼錯誤";
     case "auth/too-many-requests":
       return "嘗試次數過多，請稍後再試";
+    case "auth/user-not-found":
+      return "找不到使用這個信箱註冊的帳號";
     default:
       return "發生錯誤，請稍後再試";
   }

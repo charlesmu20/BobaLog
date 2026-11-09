@@ -14,17 +14,30 @@ export type BrandComment = Comment & { drinkId: string };
 // 不用先抓全部drinkId再一支一支查(不是N+1)
 export function useBrandComments(brandSlug: string) {
   const [comments, setComments] = useState<BrandComment[]>([]);
+  const [commentsError, setCommentsError] = useState(false);
 
   useEffect(() => {
+    // 重新訂閱前先清掉上一輪的錯誤狀態,retry後才不會卡著舊的錯誤訊息
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCommentsError(false);
     const q = query(collection(db, "comments"), where("brandSlug", "==", brandSlug), orderBy("createdAt", "desc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<BrandComment, "id">),
-      }));
-      setComments(list);
-    });
+    // 跟useComments.ts同一個理由:沒有loading畫面可以卡,監聽失敗原本只會悄悄變成空清單,
+    // 看起來像「這個品牌還沒人留言」
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<BrandComment, "id">),
+        }));
+        setComments(list);
+      },
+      (error) => {
+        console.error("brandComments監聽失敗", error);
+        setCommentsError(true);
+      }
+    );
 
     return () => unsubscribe();
   }, [brandSlug]);
@@ -43,5 +56,5 @@ export function useBrandComments(brandSlug: string) {
     [comments, liveProfiles]
   );
 
-  return { comments: resolvedComments };
+  return { comments: resolvedComments, commentsError };
 }

@@ -17,8 +17,12 @@ export type Comment = {
 
 export function useComments(brandSlug: string, drinkId: string, uid: string | null) {
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsError, setCommentsError] = useState(false);
 
   useEffect(() => {
+    // 重新訂閱前先清掉上一輪的錯誤狀態
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCommentsError(false);
     // 查這杯飲料底下的全部留言,搭配orderBy讓最新的排最上面
     const q = query(
       collection(db, "comments"),
@@ -27,13 +31,22 @@ export function useComments(brandSlug: string, drinkId: string, uid: string | nu
       orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<Comment, "id">),
-      }));
-      setComments(list);
-    });
+    // 這裡沒有loading畫面可以卡住,監聽失敗原本只會讓留言清單悄悄變成空的,
+    // 看起來像「這杯飲料還沒人留言」——加上error狀態,讓CommentSection換成明確的錯誤文字
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Comment, "id">),
+        }));
+        setComments(list);
+      },
+      (error) => {
+        console.error("comments監聽失敗", error);
+        setCommentsError(true);
+      }
+    );
 
     return () => unsubscribe();
   }, [brandSlug, drinkId]);
@@ -69,7 +82,7 @@ export function useComments(brandSlug: string, drinkId: string, uid: string | nu
     });
   };
 
-  return { comments: resolvedComments, submitComment };
+  return { comments: resolvedComments, commentsError, submitComment };
 }
 
 // 編輯/刪除是單純對同一份"comments"文件操作,不管是從飲料頁(useComments)

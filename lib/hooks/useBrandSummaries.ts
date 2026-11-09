@@ -4,6 +4,13 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { BrandSummary } from "@/lib/brands";
 
+// brands載入完成前(data是undefined)拿這個固定參考值當預設值,不要每次render都寫
+// `data ?? []`——那樣每次render都會產生一個全新的空陣列,參考值一直變,凡是拿
+// brands當useMemo/useEffect依賴值的地方(例如地圖頁的PlacesLayer)就會被誤判成
+// 「資料變了」,在brands真的載入完成之前一路瘋狂重新渲染,嚴重的話會跳出
+// React的"Maximum update depth exceeded"
+const EMPTY_BRANDS: BrandSummary[] = [];
+
 // 真正去Firestore抓資料的function,交給SWR在需要的時候呼叫——
 // 這支本身跟改寫前的fetchBrands幾乎一樣,只是不再自己管loading/error/cancelled這些狀態,
 // 改交給SWR統一處理
@@ -21,7 +28,7 @@ export function useBrandSummaries() {
   // 回傳的形狀刻意跟改寫前一模一樣(brands/brandsLoading/brandsError/retry),
   // 這樣所有原本在用這個hook的地方都不用改一行程式碼
   return {
-    brands: data ?? [],
+    brands: data ?? EMPTY_BRANDS,
     brandsLoading: isLoading,
     brandsError: !!error,
     retry: () => mutate(),

@@ -8,7 +8,7 @@ import { useUserStats } from "@/lib/hooks/useUserStats";
 import { BadgeRow } from "@/components/badges/badge-row";
 import { BadgeChip } from "@/components/badges/badge-chip";
 import { MedalA } from "@/components/badges/medal-a";
-import { loadingGuard } from "@/components/async-guard";
+import { loadingGuard, errorGuard } from "@/components/async-guard";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import { BADGES, BadgeCategory } from "@/lib/badges";
 
@@ -164,9 +164,8 @@ function AchievementSummary({
 export default function BadgesPage() {
   const { user, checkingAuth } = useCurrentUser();
   const router = useRouter();
-  // user是null的時候(還沒登入/還在檢查中)就傳null給hook,不要讓uid是undefined
-  const { unlockedBadges, badgesLoading } = useUserBadges(user?.uid ?? null);
-  const { stats } = useUserStats(user?.uid ?? null);
+  const { unlockedBadges, badgesLoading, badgesError, retryBadges } = useUserBadges();
+  const { stats, statsError, retry } = useUserStats(user?.uid ?? null);
 
   // 跟favorites/page.tsx一樣的登入保護:確定沒登入就導去/login
   useEffect(() => {
@@ -175,14 +174,17 @@ export default function BadgesPage() {
     }
   }, [checkingAuth, user, router]);
 
-  // 還在檢查登入狀態、或確定沒登入,畫面先什麼都不顯示
-  if (checkingAuth || !user) {
-    return null;
+  // checkingAuth(還在確認登入狀態,強制重整網頁時最明顯)也一起併進loading條件,
+  // 不要讓畫面在這段期間完全空白、等確認完才突然跳出loading卡片——跟favorites頁面同一套做法。
+  // 勳章清單、統計數字也是,兩個都抓完才一次顯示整頁,不要讓總覽卡、已解鎖、未解鎖分批跳出來
+  if (checkingAuth || !user || badgesLoading || (stats === null && !statsError)) {
+    return loadingGuard(MAIN_CLASS, "載入成就中...");
   }
 
-  // 勳章清單、統計數字,兩個都抓完才一次顯示整頁,跟首頁同一套邏輯,
-  // 不要讓總覽卡、已解鎖、未解鎖分批跳出來
-  if (badgesLoading || stats === null) return loadingGuard(MAIN_CLASS, "載入成就中...");
+  // 統計數字抓取失敗(網路問題、函式呼叫出錯等)、或勳章監聽失敗(安全規則、網路問題等):
+  // 給可重試的錯誤卡片,不然原本會卡在上面的loadingGuard轉圈圈出不來
+  if (statsError) return errorGuard(MAIN_CLASS, "成就資料載入失敗", undefined, retry);
+  if (badgesError) return errorGuard(MAIN_CLASS, "勳章資料載入失敗", undefined, retryBadges);
 
   // 已解鎖的,不分類別,整批放在最上面的展示區
   const unlockedList = BADGES.filter((b) => unlockedBadges.has(b.id));

@@ -3,8 +3,7 @@
 // 這裡只做「聽懂使用者在說什麼」,不管抽出來的品牌/飲料是不是真的存在
 // 那是functions/src/catalog.ts負責的事,兩邊分開。
 
-import { FunctionDeclaration, GoogleGenAI } from "@google/genai";
-import type { ChatTurn } from "../gemini";
+import { FunctionDeclaration } from "@google/genai";
 
 // 拍照記帳用:前端把照片縮小壓縮後轉成base64傳過來,這裡直接轉成Gemini看得懂的inlineData格式
 export type ChatImage = { mimeType: string; data: string };
@@ -17,21 +16,6 @@ export type ExtractedDrink = {
   note: string;
   addOns: string[];
 };
-
-// Gemini處理完一句話之後,只會有兩種結果:
-// extracted:資訊夠清楚,抽出了至少一杯的品牌/飲料/杯型/備註(items是陣列,一張收據/
-//           一句話講好幾杯的話,這裡就會有好幾筆),可以拿去後面比對真實資料
-// reply:資訊不夠清楚(例如沒提品牌),或者這句話根本跟記帳無關(像打招呼),
-//       這種情況Gemini不會抽取任何東西,只會回一段文字(可能是追問,也可能是閒聊回覆)
-export type LogExtractionResult =
-  | {
-      type: "extracted";
-      items: ExtractedDrink[];
-    }
-  | {
-      type: "reply";
-      text: string;
-    };
 
 // create_log_draft這張表單的定義。只有在Gemini判斷「至少知道品牌跟飲料」時才應該呼叫這個工具,
 // 其他欄位(size、note)可以不填——所以required裡只放brandName、drinkName兩個必填欄位
@@ -152,50 +136,9 @@ export function buildExtractedDrinksFromCalls(calls: { args?: unknown }[]): Extr
   });
 }
 
-// 真正呼叫Gemini的函式:把表單定義、系統指令、使用者這句話(可能還有照片)、對話歷史,
-// 全部包好送出去。image是選填的——拍照記帳才會有,純文字訊息沿用原本的流程
-export async function extractLogDraft(
-  apiKey: string,
-  message: string,
-  history: ChatTurn[],
-  image?: ChatImage
-): Promise<LogExtractionResult> {
-  // 【建立Gemini連線】
-  const ai = new GoogleGenAI({ apiKey });
-
-  // 這一輪使用者訊息的parts:文字跟圖片都是選填,但至少會有一個
-  // (chatLog.ts/index.ts那邊已經擋掉「兩個都沒有」的情況),所以這裡用filter把空字串的
-  // text part濾掉就好,不用再判斷「真的什麼都沒有」這種情況
-  const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
-  if (message) userParts.push({ text: message });
-  if (image) userParts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
-
-  // 【組對話內容:歷史紀錄+這句新訊息】
-  const contents = [
-    ...history.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] })),
-    { role: "user" as const, parts: userParts },
-  ];
-
-  // 【送出去問Gemini】
-  const response = await ai.models.generateContent({
-    model: "gemini-3.8-flash",
-    contents,
-    config: {
-      systemInstruction: LOG_SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: [CREATE_LOG_DRAFT_DECLARATION] }],
-    },
-  });
-
-  // 【看Gemini有沒有呼叫工具——多杯的話,Gemini會在同一次回應裡呼叫好幾次,
-  // 所以這裡要用filter拿全部的呼叫,不是只拿第一個】
-  const calls = response.functionCalls?.filter((c) => c.name === "create_log_draft" && c.args) ?? [];
-  if (calls.length > 0) {
-    return { type: "extracted", items: buildExtractedDrinksFromCalls(calls) };
-  }
-
-  // 【沒呼叫工具,組成reply回傳】
-  return {
-    type: "reply",
-    text: response.text?.trim() || "不好意思,我沒聽懂,可以換個方式說說看嗎?",
-  };
-}
+// 原本這裡還有一支export async function extractLogDraft(),自己單獨打一次Gemini
+// (只帶create_log_draft這一個工具)——是記帳/推薦分開兩個模式時代的入口。
+// 統一聊天入口(chatAssistant/routeMessage.ts)改成記帳跟推薦兩組工具定義同時掛在
+// 同一次Gemini呼叫裡之後,已經沒有任何地方會走這支單獨呼叫的路徑,整支已確認是死碼刪除。
+// 現在的流程是:routeMessage.ts一次呼叫→用上面這支buildExtractedDrinksFromCalls組出items
+// →直接丟給chatLog.ts的resolveLogDraftFromItems,不會再經過這裡

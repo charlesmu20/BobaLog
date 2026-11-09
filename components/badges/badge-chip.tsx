@@ -1,12 +1,6 @@
-import { Check } from "lucide-react";
 import type { BadgeDefinition } from "@/lib/badges";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
-
-function formatDate(d: Date) {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}.${mm}.${dd}`;
-}
+import { UnlockedStamp } from "./unlocked-stamp";
 
 // 已解鎖勳章的小格子版本,放在「戰利品展示」區塊,跟下面還沒解鎖的完整長列分開
 export function BadgeChip({
@@ -29,11 +23,7 @@ export function BadgeChip({
         <p className="mt-0.5 text-xs leading-snug text-[#8A7A63]">{badge.description}</p>
       </div>
 
-      <p className="mt-auto inline-flex items-center gap-1 rounded-full border-2 border-[#3C332B] bg-[#A6C285] px-2.5 py-0.5 text-[11px] font-bold text-[#2E4019] tabular-nums">
-        <Check className="size-3" strokeWidth={3.5} aria-hidden />
-        <span className="sr-only">解鎖於</span>
-        {formatDate(unlockedAt)}
-      </p>
+      <UnlockedStamp date={unlockedAt} size="sm" className="mt-auto" />
     </div>
   );
 }

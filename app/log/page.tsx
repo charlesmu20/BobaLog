@@ -23,7 +23,7 @@ export default function LogPage() {
   const { toast: successToast, showToast: setSuccessToast } = useSuccessToast();
   // logs原本只活在HistoryView裡面,搬到這一層,這樣新增紀錄用的LogModal
   // (下面那個,不是HistoryView裡編輯用的那個)也拿得到,才能做快速進帳
-  const { logs } = useLogs(user?.uid ?? null);
+  const { logs, logsError, retryLogs } = useLogs(user?.uid ?? null);
 
   useEffect(() => {
     if (!checkingAuth && !user) {
@@ -39,6 +39,9 @@ export default function LogPage() {
   // 抓取品牌清單失敗(離線、網路問題等):給可重試的錯誤卡片,
   // 不然畫面會卡在上面的LoadingCard轉圈圈出不來
   if (brandsError) return errorGuard(MAIN_CLASS, "品牌資料載入失敗", undefined, retry);
+
+  // logs監聽失敗:同樣給可重試的錯誤卡片,不要悄悄顯示成「完全沒記過帳」的空清單
+  if (logsError) return errorGuard(MAIN_CLASS, "日誌資料載入失敗", undefined, retryLogs);
 
   return (
     <main className={MAIN_CLASS}>

@@ -1,11 +1,6 @@
-import { Check, Flame, Lock } from "lucide-react";
+import { Flame, Lock } from "lucide-react";
 import type { BadgeDefinition } from "@/lib/badges";
-
-function formatDate(d: Date) {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}.${mm}.${dd}`;
-}
+import { UnlockedStamp } from "./unlocked-stamp";
 
 export function BadgeRow({
   badge,
@@ -56,11 +51,7 @@ export function BadgeRow({
         </p>
 
         {unlocked ? (
-          <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border-2 border-[#3C332B] bg-[#A6C285] px-2.5 py-0.5 text-xs font-bold text-[#2E4019] tabular-nums">
-            <Check className="size-3.5" strokeWidth={3.5} aria-hidden />
-            <span className="sr-only">解鎖於</span>
-            {formatDate(unlockedAt)}
-          </p>
+          <UnlockedStamp date={unlockedAt} className="mt-2.5" />
         ) : current === null ? (
           // stats還沒抓回來:先顯示一個淡淡的骨架佔位,不要顯示假的0/threshold
           <div className="mt-3" aria-hidden>

@@ -33,12 +33,17 @@ export default function DailyReceiptList({
       {groups.map((group) => (
         <div key={group.key} className={`${STICKER_CARD_BASE} p-4 shadow-[4px_4px_0_0_#3C332B] transition-all hover:shadow-[3px_3px_0_0_#3C332B] hover:translate-x-px hover:translate-y-px`}>
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-dashed border-[#D9C9AE]">
-            <div className="text-sm text-[#8A7A63]">{formatDateHeader(group.date)}</div>
-            <div className="flex items-center gap-4">
+            {/* 日期包成米白膠囊——跟右邊「X杯」膠囊是同一組視覺語言,但顏色不同,
+                不會跟右邊的綠色膠囊搶顏色 */}
+            <div className="rounded-full border-2 border-[#3C332B] bg-[#F6F2EA] px-3 py-1">
+              <span className="text-sm font-bold text-[#4A3424]">{formatDateHeader(group.date)}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
               <span className="text-lg font-bold text-[#3C332B]">${group.subtotal}</span>
-              <span className="flex items-center gap-1 text-sm text-[#8A7A63]">
+              {/* 杯數膠囊換成跟StatCards「連續記帳」同一個抹茶綠,取代原本的淺咖啡Coffee icon */}
+              <span className="flex items-center gap-1 rounded-full border-2 border-[#3C332B] bg-[#A6C285] px-2.5 py-1 text-xs font-bold text-[#2E4019]">
                 <Coffee className="w-3.5 h-3.5" />
-                {group.items.length}
+                {group.items.length} 杯
               </span>
             </div>
           </div>
@@ -50,13 +55,15 @@ export default function DailyReceiptList({
                     fadingOutId === item.id ? "opacity-0 scale-95" : "opacity-100 scale-100"
                   }`}
                 >
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                 <BrandIcon name={item.brand} icon={getBrandIcon(item.brand, brands)} />
-                <div>
+                <div className="min-w-0 flex-1">
                     {/* 加料跟杯型一樣,併進飲料名稱同一行(用同樣的淺咖啡小字),
                         不要自己獨立一整行——不然會變成飲料名/加料/品牌三行都擠在一起,
-                        加料那行又跟品牌那行同樣淺咖啡色、同樣字級,看起來像重複兩行一樣的灰字 */}
-                    <div className="text-sm font-medium text-[#3C332B]">
+                        加料那行又跟品牌那行同樣淺咖啡色、同樣字級,看起來像重複兩行一樣的灰字。
+                        min-w-0+truncate:手機版名稱一長就會把右邊金額/編輯/刪除往外推、
+                        每一列對不齊,這裡讓名稱自己截斷,右邊那叢固定維持在同一條線上 */}
+                    <div className="truncate text-sm font-medium text-[#3C332B]">
                     {item.drink}
                     {item.size ? (
                         <span className="text-xs font-normal text-[#8A7A63]"> {item.size}</span>
@@ -65,19 +72,28 @@ export default function DailyReceiptList({
                         <span className="text-xs font-normal text-[#8A7A63]"> +{item.addOns.map((a) => a.name).join("、")}</span>
                     ) : null}
                     </div>
-                    <div className="text-xs text-[#8A7A63] mt-0.5">{item.brand}</div>
+                    <div className="truncate text-xs text-[#8A7A63] mt-0.5">{item.brand}</div>
                 </div>
                 </div>
-                    <div className="flex-1 text-sm text-[#8A7A63] truncate pl-4">
+                    <div className="shrink text-sm text-[#8A7A63] truncate pl-4">
                     {item.note}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                     <span className="text-sm font-medium text-[#4A3424]">${item.amount}</span>
-                    <button onClick={() => onEdit(item)} aria-label="編輯" className="text-[#8A7A63] cursor-pointer transition-colors hover:text-[#C9732F]">
-                        <Pencil className="w-4 h-4" />
+                    {/* 補邊框圓鈕,跟全站其他按鈕(粗邊框+硬陰影)語言一致,不要再是純icon沒有邊框 */}
+                    <button
+                      onClick={() => onEdit(item)}
+                      aria-label="編輯"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[#3C332B] bg-[#F6F2EA] text-[#8A7A63] cursor-pointer transition-colors hover:bg-[#F6EFE4] hover:text-[#C9732F]"
+                    >
+                        <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => onDelete(item.id)} aria-label="刪除" className="text-[#A3372B] cursor-pointer transition-colors hover:text-[#7a2420]">
-                        <Trash2 className="w-4 h-4" />
+                    <button
+                      onClick={() => onDelete(item.id)}
+                      aria-label="刪除"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[#3C332B] bg-[#F6F2EA] text-[#A3372B] cursor-pointer transition-colors hover:bg-[#A3372B] hover:text-[#F6F2EA]"
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     </div>
                 </div>

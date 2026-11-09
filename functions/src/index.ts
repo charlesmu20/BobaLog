@@ -67,41 +67,24 @@ export const chatAssistant = onCall(
 // 都會重新檢查一次勳章,該收回的也會收回。
 // event.data.after是異動後的狀態(刪除時沒有資料),event.data.before是異動前的狀態
 // (新增時沒有資料),所以uid要兩邊都試著抓。
+//
+// 下面5個collection(logs/favoriteBrands/favoriteDrinks/ratings/comments)要掛的
+// trigger邏輯完全一樣,只有監聽的文件路徑不同,原本是5份複製貼上——抽成這個helper,
+// 之後如果這段共同邏輯要改(例如要加log、要排除某種情況),只要改一個地方
+function onUidDocumentWritten(documentPath: string) {
+    return onDocumentWritten(documentPath, async (event) => {
+        const uid = event.data?.after.data()?.uid ?? event.data?.before.data()?.uid;
+        if (!uid) return;
 
-export const onLogWritten = onDocumentWritten("logs/{logId}", async (event) => {
-    const uid = event.data?.after.data()?.uid ?? event.data?.before.data()?.uid;
-    if (!uid) return;
+        await checkAndAwardBadges(uid);
+    });
+}
 
-    await checkAndAwardBadges(uid);
-});
-
-export const onFavoriteBrandWritten = onDocumentWritten("favoriteBrands/{docId}", async (event) => {
-    const uid = event.data?.after.data()?.uid ?? event.data?.before.data()?.uid;
-    if (!uid) return;
-
-    await checkAndAwardBadges(uid);
-});
-
-export const onFavoriteDrinkWritten = onDocumentWritten("favoriteDrinks/{docId}", async (event) => {
-    const uid = event.data?.after.data()?.uid ?? event.data?.before.data()?.uid;
-    if (!uid) return;
-
-    await checkAndAwardBadges(uid);
-});
-
-export const onRatingWritten = onDocumentWritten("ratings/{docId}", async (event) => {
-    const uid = event.data?.after.data()?.uid ?? event.data?.before.data()?.uid;
-    if (!uid) return;
-
-    await checkAndAwardBadges(uid);
-});
-
-export const onCommentWritten = onDocumentWritten("comments/{commentId}", async (event) => {
-    const uid = event.data?.after.data()?.uid ?? event.data?.before.data()?.uid;
-    if (!uid) return;
-
-    await checkAndAwardBadges(uid);
-});
+export const onLogWritten = onUidDocumentWritten("logs/{logId}");
+export const onFavoriteBrandWritten = onUidDocumentWritten("favoriteBrands/{docId}");
+export const onFavoriteDrinkWritten = onUidDocumentWritten("favoriteDrinks/{docId}");
+export const onRatingWritten = onUidDocumentWritten("ratings/{docId}");
+export const onCommentWritten = onUidDocumentWritten("comments/{commentId}");
 
 // ========== 回報菜單錯誤:AI辨識+自動比對 ==========
 // onDocumentCreated:使用者送出回報的那一刻觸發一次就好(不像onDocumentWritten,

@@ -1,6 +1,10 @@
 // 營業狀態的小圓點+文字徽章,地圖詳情卡片(InfoWindow)跟左側清單共用。
-// 故意全部用inline style寫(不用Tailwind className),因為InfoWindow的內容是Google地圖
-// 自己接管渲染的區域,用inline style才能保證不管在哪裡用、顏色都一定會生效
+// 原本這裡寫「故意全部用inline style、不用Tailwind className,因為InfoWindow內容
+// className不保證生效」——這個假設後來證實不準,places-layer.tsx修InfoWindow手機版
+// 橫向捲軸那次,就在InfoWindow內容裡用了Tailwind的`min-[760px]:w-[210px]`,
+// 實測桌面版/手機版都正常生效,className在這裡是可以用的。
+// 這裡維持inline style單純是因為原本就這樣寫、牽涉的顏色/尺寸都很零碎,沒有強制理由要改寫,
+// 不是因為className真的用不了
 const DOT_STYLE = {
   width: 6,
   height: 6,

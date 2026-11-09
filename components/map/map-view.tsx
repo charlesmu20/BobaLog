@@ -23,7 +23,7 @@
  * (selectedId)也是放在MapWithSidebar,左側清單跟地圖pin共用同一份選取狀態。
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { APIProvider, Map } from "@vis.gl/react-google-maps";
 import { Loader2 } from "lucide-react";
 import { useBrandSummaries } from "@/lib/hooks/useBrandSummaries";
@@ -97,11 +97,16 @@ function MapWithSidebar({ center }: { center: { lat: number; lng: number } }) {
   const [isListOpen, setIsListOpen] = useState(false);
 
   // 不管是點地圖上的pin、還是點清單裡的項目選中一家店,手機版都順便把清單收回去——
-  // 不然選完店家清單還蓋在地圖上面,看不到剛選的那個pin跑到哪裡、也看不到詳情彈窗
-  function handleSelect(id: string) {
+  // 不然選完店家清單還蓋在地圖上面,看不到剛選的那個pin跑到哪裡、也看不到詳情彈窗。
+  // 用useCallback包起來、依賴陣列是空的(setSelectedId/setIsListOpen是useState回傳的
+  // setter,React保證它們的參考值永遠不變,不會隨重新渲染變動),這樣MapWithSidebar
+  // 不管因為什麼原因重新渲染,handleSelect都還是同一個函式參考值。PlacesLayer裡
+  // 「點地圖空白處關閉詳情卡片」那個click監聽器的useEffect依賴到這個函式,
+  // 參考值不再每次重新渲染就變動,那個監聽器就不會被無謂地拆掉重裝
+  const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
     setIsListOpen(false);
-  }
+  }, []);
 
   // 760px以下清單疊在地圖上面(flex-col),760px以上才左右並排(flex-row)——
   // 原本清單固定220px寬、不管螢幕多窄都硬擠在地圖旁邊,手機寬度扣掉220px地圖只剩

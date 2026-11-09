@@ -8,8 +8,9 @@ import LogModal from "@/components/log/log-modal";
 import StatCards from "@/components/log/stat-cards";
 import MonthFilter from "@/components/log/month-filter";
 import FavoriteBrands from "@/components/log/favorite-brands";
+import FavoriteDrinks from "@/components/log/favorite-drinks";
 import DailyReceiptList from "@/components/log/daily-receipt-list";
-import { getCurrentMonthKey, monthKeyOf, calcStreak } from "@/lib/history-utils";
+import { getCurrentMonthKey, monthKeyOf, calcStreak, formatMonthLabel } from "@/lib/history-utils";
 import type { LogEntry } from "@/lib/types";
 import type { Brand } from "@/lib/brands";
 import ConfirmDialog from "@/components/log/confirm-dialog";
@@ -90,6 +91,20 @@ export default function HistoryView({
     list.sort((a, b) => b.count - a.count);
     return list.slice(0, 3);
   }, [logsInSelectedMonth]);
+  //當月飲料排行:跟favoriteBrand同一套分組邏輯,但key換成「品牌+飲料」的組合,
+  //不分M/L杯型合併算同一組——跟profile頁面算全時間最愛飲料的key邏輯一致
+  const favoriteDrinks = useMemo(() => {
+    const counts = new Map<string, { brand: string; drink: string; count: number }>();
+    for (const log of logsInSelectedMonth) {
+      const key = `${log.brand}::${log.drink}`;
+      const entry = counts.get(key);
+      if (entry) entry.count += 1;
+      else counts.set(key, { brand: log.brand, drink: log.drink, count: 1 });
+    }
+    return Array.from(counts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+  }, [logsInSelectedMonth]);
 	//DailyReceiptList
 	const groupedByDate = useMemo(() => {
 	const groups = new Map<string, LogEntry[]>();
@@ -133,30 +148,39 @@ export default function HistoryView({
           新增紀錄
         </button>
       </div>
-		{/* 手機版:按鈕+內容合併成同一個大框框(貼紙卡邊框+陰影),點按鈕用max-height
-			做展開/收合動畫。760px以上frameDiv跟中間的動畫wrapper都用display:contents
-			讓自己消失、不產生任何box——裡面最後那層grid(StatCards+FavoriteBrands
-			直接當子元素)就等同回到原本的結構,align-items:stretch兩邊高度自動對齊
-			完全不受影響 */}
-		<div className="mb-4 overflow-hidden rounded-2xl border-[3px] border-[#3C332B] bg-[#F6F2EA] shadow-[3px_3px_0_0_#3C332B] min-[760px]:contents">
-			<button
-				type="button"
-				onClick={() => setStatsOpen((v) => !v)}
-				aria-expanded={statsOpen}
-				className="flex w-full items-center justify-center gap-1.5 cursor-pointer px-3 py-2.5 text-xs font-medium text-[#4A3424] transition-colors hover:bg-[#F6EFE4] min-[760px]:hidden"
-			>
-				本月摘要
-				<ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform duration-300 ${statsOpen ? "rotate-180" : ""}`} />
-			</button>
+		{/* 整塊(header bar+內容)從小尺寸到寬螢幕都是同一個框框、同一個底色,不再用
+			display:contents讓外框在寬螢幕消失——跟勳章頁「我的成就」總覽卡一樣,
+			永遠是一張完整的卡片。1076px以下才會有收合按鈕可以點(展開/收合這塊),
+			1076px以上固定展開(min-[1076px]:max-h-none蓋掉收合用的max-height) */}
+		<div className="mb-4 overflow-hidden rounded-2xl border-[3px] border-[#3C332B] shadow-[3px_3px_0_0_#3C332B]">
+			{/* 深咖啡實心header bar,跟勳章頁「我的成就」總覽卡同一套語言 */}
+			<div className="flex items-center justify-between gap-2 bg-[#3C332B] px-4 py-2.5 text-[#F6F2EA]">
+				<span className="text-sm font-bold tracking-wide">本月摘要</span>
+				<div className="flex items-center gap-3">
+					<span className="text-xs font-bold tracking-widest text-[#A6C285]">{formatMonthLabel(selectedMonth)}</span>
+					<button
+						type="button"
+						onClick={() => setStatsOpen((v) => !v)}
+						aria-expanded={statsOpen}
+						aria-label="展開或收合本月摘要"
+						className="flex cursor-pointer items-center text-[#F6F2EA] min-[1076px]:hidden"
+					>
+						<ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform duration-300 ${statsOpen ? "rotate-180" : ""}`} />
+					</button>
+				</div>
+			</div>
+			{/* 底色換成跟勳章頁「已解鎖」展示櫃同一款點點紋路底(khaki+radial-gradient小圓點),
+				取代原本平淡的米白,裡面的StatCards/FavoriteBrands小卡維持原本白底,視覺上才會浮起來 */}
 			<div
-				className={`overflow-hidden transition-[max-height] duration-300 ease-in-out min-[760px]:contents ${
-					statsOpen ? "max-h-[1000px] border-t-2 border-[#E3D8C6]" : "max-h-0"
+				className={`overflow-hidden bg-[#E3D8C6] bg-[radial-gradient(#3C332B26_1.5px,transparent_1.5px)] bg-[length:14px_14px] transition-[max-height] duration-300 ease-in-out min-[1076px]:max-h-none ${
+					statsOpen ? "max-h-[1000px]" : "max-h-0"
 				}`}
 			>
-				{/* 760px以下疊成單欄;760px以上左邊StatCards用minmax鎖在320~440px之間,
-					右邊最愛品牌用1fr吃掉所有剩餘空間——螢幕變窄時只有最愛品牌在縮,StatCards
-					維持在範圍內不會被擠爆 */}
-				<div className="grid grid-cols-1 gap-3 p-3 min-[760px]:grid-cols-[minmax(320px,440px)_1fr] min-[760px]:gap-3 min-[760px]:p-0 min-[760px]:mb-4">
+				{/* 1075px以下全部疊成單欄,StatCards跟最愛品牌/飲料排行上下疊放、都用滿整個寬度,
+					不再讓最愛品牌/飲料排行去分StatCards旁邊剩下的空間,從根本上避開擠爆文字的問題。
+					1076px以上才切回左右並排(StatCards鎖在320~440px窄欄,右邊1fr)——這個寬度下
+					1fr拿到的剩餘空間一定夠寬,兩張卡用repeat(auto-fit,minmax(260px,1fr))自動排版 */}
+				<div className="grid grid-cols-1 gap-3 p-3 min-[1076px]:grid-cols-[minmax(320px,440px)_1fr]">
 					<StatCards
 						total={monthlyTotal}
 						count={monthlyCount}
@@ -165,7 +189,10 @@ export default function HistoryView({
 						avgPerCup={avgPerCup}
 						streakDays={streakDays}
 					/>
-					<FavoriteBrands list={favoriteBrands} brands={brands} />
+					<div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3">
+						<FavoriteBrands list={favoriteBrands} brands={brands} />
+						<FavoriteDrinks list={favoriteDrinks} brands={brands} />
+					</div>
 				</div>
 			</div>
 		</div>

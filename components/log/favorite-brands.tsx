@@ -15,7 +15,11 @@ export default function FavoriteBrands({
 
   return (
     <div className={`${STICKER_CARD_BASE} p-3.5 shadow-[3px_3px_0_0_#3C332B] transition-all hover:shadow-[2px_2px_0_0_#3C332B] hover:translate-x-px hover:translate-y-px`}>
-      <div className="text-sm text-[#8A7A63] mb-3">當月最愛品牌</div>
+      {/* 橘色菱形色塊,跟勳章頁CategoryHeading同一個點綴,幫標題加一點顏色重量 */}
+      <div className="mb-3 flex items-center gap-2">
+        <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-[2px] border-2 border-[#3C332B] bg-[#C9732F]" />
+        <span className="text-sm text-[#8A7A63]">當月最愛品牌</span>
+      </div>
       <div className="flex flex-col">
         {slots.map((b, i) => (
           <div key={i} className="flex items-center gap-3 py-2">

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import { toDateString } from "@/lib/history-utils";
+import { useClickOutside } from "@/lib/hooks/useClickOutside";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -23,15 +24,7 @@ export default function DatePicker({
   const [viewDate, setViewDate] = useState(() => new Date(value));
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  useClickOutside(ref, () => setOpen(false));
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth(); // 0-11

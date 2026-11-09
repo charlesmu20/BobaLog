@@ -13,7 +13,7 @@ type ToastItem = { id: string; badgeId: string };
 // 只要Firestore的userBadges即時多了一筆新文件,就會跳出提示,不用特別跑去/badges才看得到。
 export default function BadgeUnlockToast() {
   const { user } = useCurrentUser();
-  const { unlockedBadges, badgesLoading } = useUserBadges(user?.uid ?? null);
+  const { unlockedBadges, badgesLoading } = useUserBadges();
   // null代表「還沒做過第一次同步」,第一次同步只負責記錄、不彈toast,
   // 避免一進站就把使用者本來就有的勳章誤判成「剛剛解鎖」
   const seenRef = useRef<Set<string> | null>(null);

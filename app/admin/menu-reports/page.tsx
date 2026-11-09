@@ -5,7 +5,7 @@ import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useMenuReports } from "@/lib/hooks/useMenuReports";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
-import { loadingGuard } from "@/components/async-guard";
+import { loadingGuard, errorGuard } from "@/components/async-guard";
 import MenuReportSidebar from "@/components/admin/menu-report-sidebar";
 import MenuReportDetail from "@/components/admin/menu-report-detail";
 
@@ -15,7 +15,7 @@ export default function MenuReportAdminPage() {
   const { user, checkingAuth } = useCurrentUser();
   const { isAdmin, checkingAdmin } = useIsAdmin();
   const router = useRouter();
-  const { reports, loading } = useMenuReports(isAdmin);
+  const { reports, loading, error, retry } = useMenuReports(isAdmin);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +49,8 @@ export default function MenuReportAdminPage() {
   if (!isAdmin) return null;
 
   if (loading) return loadingGuard(MAIN_CLASS, "載入回報中...");
+
+  if (error) return errorGuard(MAIN_CLASS, "回報資料載入失敗", undefined, retry);
 
   const selectedReport = reports.find((r) => r.id === selectedId) ?? null;
 

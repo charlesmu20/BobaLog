@@ -10,6 +10,7 @@ function StatCard({
   value,
   diffLabel,
   diffPositive,
+  highlight,
 }: {
   icon: ReactNode;
   iconBg: string;
@@ -18,11 +19,17 @@ function StatCard({
   value: string;
   diffLabel?: string | null;
   diffPositive?: boolean;
+  // 跟首頁Hero色塊、勳章頁進度條同一個抹茶綠——四張卡裡挑一張(連續記帳)換成實心綠底,
+  // 幫整頁加一塊比較有重量的顏色,不是整頁都淺咖啡/米白
+  highlight?: boolean;
 }) {
+  const cardBase = highlight
+    ? "rounded-2xl border-[3px] border-[#3C332B] bg-[#A6C285]"
+    : STICKER_CARD_BASE;
   return (
     // min-h-[88px]:4張卡高度不一樣會導致items-center置中的基準不同,看起來圖示/文字
     // 沒對齊同一條線——給一個共同的最小高度,四張卡才會站在同一個基準上置中
-    <div className={`${STICKER_CARD_BASE} flex min-h-[88px] items-center gap-3 p-3.5 shadow-[3px_3px_0_0_#3C332B] hover:shadow-[2px_2px_0_0_#3C332B] hover:translate-x-px hover:translate-y-px transition-all`}>
+    <div className={`${cardBase} flex min-h-[88px] items-center gap-3 p-3.5 shadow-[3px_3px_0_0_#3C332B] hover:shadow-[2px_2px_0_0_#3C332B] hover:translate-x-px hover:translate-y-px transition-all`}>
       <div
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-[#3C332B]"
         style={{ backgroundColor: iconBg }}
@@ -30,11 +37,11 @@ function StatCard({
         <span style={{ color: iconColor }}>{icon}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-xs text-[#8A7A63]">{label}</div>
+        <div className={`text-xs ${highlight ? "text-[#2E4019]" : "text-[#8A7A63]"}`}>{label}</div>
         {/* 數字跟徽章本來就不該換行,一律同一行——靠外層StatCards欄位現在有
             minmax(320px,440px)的寬度保底,每張卡夠寬塞得下,不用再靠換行來避免擠爆 */}
         <div className="flex items-center gap-2">
-          <div className="text-xl font-bold text-[#3C332B] whitespace-nowrap">{value}</div>
+          <div className={`text-xl font-bold whitespace-nowrap ${highlight ? "text-[#2E4019]" : "text-[#3C332B]"}`}>{value}</div>
           {diffLabel && (
             <span
               className={`inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] ${
@@ -104,6 +111,7 @@ export default function StatCards({
         iconColor="#854F0B"
         label="連續記帳"
         value={`${streakDays} 天`}
+        highlight
       />
     </div>
   );

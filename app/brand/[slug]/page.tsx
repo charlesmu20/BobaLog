@@ -35,7 +35,7 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
   // 跟useBrand(slug)是兩份不同的資料,各自負責不同用途
   const { brands: brandSummaries } = useBrandSummaries();
   // 整個品牌(不分飲料)的留言,給下面「顧客留言」那個頁籤用
-  const { comments: brandComments } = useBrandComments(slug);
+  const { comments: brandComments, commentsError: brandCommentsError } = useBrandComments(slug);
 
   const [view, setView] = useState<"menu" | "comments">("menu");
   const [search, setSearch] = useState("");
@@ -155,7 +155,12 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
           />
         </>
       ) : (
-        <BrandCommentsList brandSlug={slug} comments={brandComments} drinks={brand.drinks} />
+        <BrandCommentsList
+          brandSlug={slug}
+          comments={brandComments}
+          commentsError={brandCommentsError}
+          drinks={brand.drinks}
+        />
       )}
 
       <SuccessToast message={toast} />

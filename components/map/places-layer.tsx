@@ -204,7 +204,8 @@ function PlaceMarker({
   onSelect: (id: string) => void;
 }) {
   const [markerRef, marker] = useAdvancedMarkerRef();
-  const size = place.brand ? 36 : 18;
+  // 原本沒比對到品牌的pin只有18px,手機上點起來範圍太小,放大到28px比較好點
+  const size = place.brand ? 36 : 28;
 
   return (
     <>
@@ -231,10 +232,17 @@ function PlaceMarker({
         // 這就是「上面缺一塊」的真正原因。改成自己畫關閉鈕,就不會有這塊多餘的空白了
         <InfoWindow anchor={marker} headerDisabled onCloseClick={() => onSelect("")}>
           <div
+            // 跟MapSidebar/MapView同一個760px斷點:760px以上地圖夠寬,Google會給
+            // 足夠的InfoWindow空間,直接寫死210px(跟原本桌面版一樣寬);760px以下
+            // 地圖容器變窄,Google分配給InfoWindow的空間常常不到210px(實測過,
+            // 窄的時候只有175px左右),這裡故意不設width,只靠下面style的maxWidth
+            // 當上限,讓它照內容自然寬度縮(通常遠不到210px),就不會再被Google
+            // 硬塞的那個偏窄容器撐出橫向捲軸
+            className="min-[760px]:w-[210px]"
             style={{
               fontSize: 12,
               color: "#4A3424",
-              width: 210,
+              maxWidth: 210,
               position: "relative",
               paddingRight: 16,
               boxSizing: "border-box",
@@ -268,10 +276,14 @@ function PlaceMarker({
               <p style={{ color: "#8A7A63", margin: "0 0 6px" }}>{place.todayHours}</p>
             )}
             <div style={{ display: "flex", alignItems: "center", marginTop: 2, marginRight: -16 }}>
-              {place.brand && (
+              {place.brand ? (
                 <Link href={`/brand/${place.brand.slug}`} style={{ color: "#C9732F", fontSize: 11 }}>
                   查看菜單 →
                 </Link>
+              ) : (
+                // 沒比對到品牌的話,原本這排只剩導航按鈕孤零零一顆,使用者會納悶
+                // 「怎麼沒有查看菜單」——加一句說明清楚原因,不是忘記做,是這家店還沒收錄
+                <span style={{ color: "#8A7A63", fontSize: 11 }}>此店家尚未收錄菜單</span>
               )}
               {/* 導航:直接連去Google Maps的路線規劃,帶destination_place_id可以準確定位到
                   這家店(不是只靠經緯度)。跟查看菜單同一排,marginLeft:auto推到最右邊——

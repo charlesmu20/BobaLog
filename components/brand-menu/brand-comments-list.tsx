@@ -1,10 +1,12 @@
 "use client";
+import { useMemo } from "react";
 import Link from "next/link";
 import { User } from "lucide-react";
 import type { BrandComment } from "@/lib/hooks/useBrandComments";
 import type { Drink } from "@/lib/brands";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useImagesReady } from "@/lib/hooks/useImagesReady";
 
 // 跟components/drink/comment-section.tsx裡那支一樣的時間格式,這邊沒有共用檔案可以import,
 // 就地放一份就好,不用為了一個小function特地抽出去一個新檔案
@@ -22,14 +24,27 @@ function formatRelativeTime(timestamp: number) {
 export default function BrandCommentsList({
   brandSlug,
   comments,
+  commentsError = false,
   drinks,
 }: {
   brandSlug: string;
   comments: BrandComment[];
+  commentsError?: boolean;
   drinks: Drink[];
 }) {
   // comments只存drinkId,畫面要顯示的是飲料名稱,所以查一下對照表
   const drinkNameById = new Map(drinks.map((d) => [d.id, d.name]));
+
+  // 這批留言的頭貼要等「全部」都預先載入好才一起顯示,不要因為圖片下載
+  // 速度不同,各自隨機先後跳出來(哪一個排視覺上面下面無關)
+  const photoUrls = useMemo(() => comments.map((c) => c.photoURL), [comments]);
+  const avatarsReady = useImagesReady(photoUrls);
+
+  // commentsError優先判斷:監聽失敗時comments也會是空陣列,
+  // 不能讓它被誤判成「這個品牌還沒有任何留言」這個正常的空狀態
+  if (commentsError) {
+    return <p className="text-sm text-red-500 py-6 text-center">留言載入失敗,重新整理看看</p>;
+  }
 
   if (comments.length === 0) {
     return <p className="text-sm text-[#6B5D4F] py-6 text-center">這個品牌還沒有任何留言</p>;
@@ -43,7 +58,7 @@ export default function BrandCommentsList({
           <div key={c.id} className={`${STICKER_CARD_BASE} p-3.5`}>
             <div className="flex items-start gap-2.5">
               <Avatar className="w-8 h-8 border-2 border-[#3C332B] flex-shrink-0">
-                <AvatarImage src={c.photoURL ?? undefined} alt={c.displayName} />
+                <AvatarImage src={avatarsReady ? (c.photoURL ?? undefined) : undefined} alt={c.displayName} />
                 <AvatarFallback className="bg-white">
                   <User className="w-4 h-4" style={{ color: "#3C332B" }} />
                 </AvatarFallback>

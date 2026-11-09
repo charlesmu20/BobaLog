@@ -10,21 +10,36 @@ import type { LogEntry } from "@/lib/types";
 // 不要兩邊各自開一條onSnapshot監聽同一份資料
 export function useLogs(uid: string | null) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logsError, setLogsError] = useState(false);
+  // 重試用:改這個值會讓下面的effect重新跑一次,等於重新訂閱一次onSnapshot
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     // 沒登入就不訂閱,跟useFavorites.ts同樣的理由——這個判斷當下就能決定,
     // 不需要額外setState清空
     if (!uid) return;
+    // 重新訂閱前(換帳號、retry)先清掉上一輪的錯誤狀態
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLogsError(false);
     const q = query(collection(db, "logs"), where("uid", "==", uid), orderBy("date", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as LogEntry[];
-      setLogs(data);
-    });
+    // logs是記帳頁、個人資料頁的核心內容(不是裝飾性小角標),監聽失敗卻沒接錯誤回呼的話,
+    // 畫面會悄悄一直顯示空清單,看起來像完全沒記過帳,所以比照useUserBadges加上錯誤回呼
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as LogEntry[];
+        setLogs(data);
+      },
+      (error) => {
+        console.error("logs監聽失敗", error);
+        setLogsError(true);
+      }
+    );
     return () => unsubscribe();
-  }, [uid]);
+  }, [uid, retryToken]);
 
-  return { logs };
+  return { logs, logsError, retryLogs: () => setRetryToken((t) => t + 1) };
 }

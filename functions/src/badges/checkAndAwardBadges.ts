@@ -8,10 +8,15 @@ import { getUserStats } from "./stats";
 // 不管是新增還是刪除文件,都會呼叫這個函式重新整理一次。
 export async function checkAndAwardBadges(uid: string): Promise<void> {
   const db = getFirestore();
-  const stats = await getUserStats(uid);
 
-  const existingSnap = await db.collection("userBadges").where("uid", "==", uid).get();
+  const [stats, existingSnap] = await Promise.all([
+    getUserStats(uid),
+    db.collection("userBadges").where("uid", "==", uid).get(),
+  ]);
   const existingDocs = new Map(existingSnap.docs.map((doc) => [doc.data().badgeId as string, doc]));
+
+ 
+  const writes: Promise<unknown>[] = [];
 
   for (const rule of BADGE_RULES) {
     const unlocked = existingDocs.has(rule.id);
@@ -20,14 +25,18 @@ export async function checkAndAwardBadges(uid: string): Promise<void> {
     if (!unlocked && qualifies) {
       // 剛達標:新增
       const docId = `${uid}_${rule.id}`;
-      await db.collection("userBadges").doc(docId).set({
-        uid,
-        badgeId: rule.id,
-        unlockedAt: FieldValue.serverTimestamp(),
-      });
+      writes.push(
+        db.collection("userBadges").doc(docId).set({
+          uid,
+          badgeId: rule.id,
+          unlockedAt: FieldValue.serverTimestamp(),
+        })
+      );
     } else if (unlocked && !qualifies) {
       // 原本已解鎖,但現在數字不夠了:收回
-      await existingDocs.get(rule.id)!.ref.delete();
+      writes.push(existingDocs.get(rule.id)!.ref.delete());
     }
   }
+
+  await Promise.all(writes);
 }

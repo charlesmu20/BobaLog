@@ -178,50 +178,12 @@ export function buildRecommendIntentFromArgs(args: {
   };
 }
 
-export async function extractRecommendIntent(
-  apiKey: string,
-  message: string,
-  history: ChatTurn[]
-): Promise<RecommendIntentResult> {
-  const ai = new GoogleGenAI({ apiKey });
-
-  const contents = [
-    ...history.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] })),
-    { role: "user" as const, parts: [{ text: message }] },
-  ];
-
-  const response = await ai.models.generateContent({
-    model: "gemini-3.8-flash",
-    contents,
-    config: {
-      systemInstruction: EXTRACT_INTENT_SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: [EXTRACT_INTENT_DECLARATION] }],
-    },
-  });
-
-  const call = response.functionCalls?.find((c) => c.name === "extract_recommend_intent" && c.args);
-  if (call) {
-    const intent = buildRecommendIntentFromArgs(
-      call.args as {
-        keywords?: string[];
-        brandName?: string;
-        mentionedLocation?: string;
-        noPreference?: boolean;
-      }
-    );
-    // 記錄這次從使用者這句話抽出來的結果——debug用,方便事後去Cloud Functions的log裡
-    // 確認「有其他選項嗎」這種追問有沒有正確把之前確立的keywords/brandName帶回來,
-    // 不用每次都靠猜的
-    console.log("[推薦]抽取意圖:", JSON.stringify({ message, intent }));
-    return intent;
-  }
-
-  console.log("[推薦]抽取意圖:跟推薦無關,直接回覆文字", JSON.stringify({ message }));
-  return {
-    type: "reply",
-    text: response.text?.trim() || "不好意思,我沒聽懂,可以換個方式說說看嗎?",
-  };
-}
+// 原本這裡還有一支export async function extractRecommendIntent(),自己單獨打一次Gemini
+// (只帶extract_recommend_intent這一個工具)——是記帳/推薦分開兩個模式時代的入口。
+// 統一聊天入口(chatAssistant/routeMessage.ts)改成記帳跟推薦兩組工具定義同時掛在
+// 同一次Gemini呼叫裡之後,已經沒有任何地方會走這支單獨呼叫的路徑,整支已確認是死碼刪除。
+// 現在的流程是:routeMessage.ts一次呼叫→用上面這支buildRecommendIntentFromArgs組出intent
+// →直接丟給recommendCoordinator.ts的resolveRecommendChatFromIntent,不會再經過這裡
 
 // ========== (2) pickRecommendation ==========
 

@@ -20,7 +20,7 @@ import { useSearchIndex } from "@/lib/hooks/useSearchIndex";
 import { useFavorites } from "@/lib/hooks/useFavorites";
 import FavoriteBrandMedal from "@/components/favorites/favorite-brand-medal";
 import FavoriteDrinkCard from "@/components/favorites/favorite-drink-card";
-import { loadingGuard } from "@/components/async-guard";
+import { loadingGuard, errorGuard } from "@/components/async-guard";
 
 const MAIN_CLASS = "mx-auto w-full max-w-6xl min-w-0 px-2.5 py-6 min-[760px]:px-6";
 
@@ -80,6 +80,8 @@ function FavoritesPageInner() {
     favoriteBrandSlugs,
     favoriteDrinkIds,
     favoritesLoading,
+    favoritesError,
+    retryFavorites,
     toggleBrandFavorite,
     toggleDrinkFavorite,
     reorderBrandFavorites,
@@ -151,13 +153,13 @@ function FavoritesPageInner() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  if (checkingAuth || !user) {
-    return null;
-  }
-
-  const dataLoading = brandsLoading || !indexLoaded || favoritesLoading;
+  // checkingAuth(還在確認登入狀態)也一起算進loading條件,不要讓畫面在這段期間完全空白、
+  // 等確認完才突然跳出loading卡片——跟log/profile頁面同一套做法
+  const dataLoading = checkingAuth || !user || brandsLoading || !indexLoaded || favoritesLoading;
 
   if (dataLoading) return loadingGuard(MAIN_CLASS, "載入收藏中...");
+
+  if (favoritesError) return errorGuard(MAIN_CLASS, "收藏資料載入失敗", undefined, retryFavorites);
 
   const brandMap = new Map(brands.map((b) => [b.slug, b]));
   const drinkMap = new Map(drinks.map((d) => [d.id, d]));

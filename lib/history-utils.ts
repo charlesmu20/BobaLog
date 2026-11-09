@@ -2,7 +2,6 @@ import type { Brand } from "@/lib/brands";
 import type { LogEntry } from "@/lib/types";
 
 export const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-export const CUP_COLORS = ["bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500", "bg-pink-500"];
 
 export const getCurrentMonthKey = () => {
   const now = new Date();
@@ -32,6 +31,13 @@ export const toDateString = (d: Date) => {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+};
+
+// "YYYY.MM.DD"格式——勳章頁的badge-chip.tsx、badge-row.tsx原本各自複製了一份一樣的函式
+export const formatDotDate = (d: Date) => {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}.${mm}.${dd}`;
 };
 
 // 連續記帳天數:從今天開始往前算有記錄的連續天數。今天還沒記的話不算斷,

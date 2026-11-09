@@ -7,6 +7,8 @@ import type { PlaceResult, MapFilters } from "@/lib/map/mapTypes";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import OpenStatusBadge from "@/components/map/open-status-badge";
 import { ClearInputButton } from "@/components/ui/clear-input-button";
+import { useClickOutside } from "@/lib/hooks/useClickOutside";
+import { PILL_BUTTON_BASE } from "@/lib/pill-button";
 
 export default function MapSidebar({
   places,
@@ -39,18 +41,20 @@ export default function MapSidebar({
   const filterRef = useRef<HTMLDivElement>(null);
   const hasActiveFilter = filters.onlyOpen || filters.onlyWithBrand;
 
-  // 點篩選面板以外的地方就自動關閉——監聽整個document的滑鼠按下事件,
-  // 點到的地方不在filterRef範圍內才關,只有filterOpen是true時才需要監聽
+  // 點篩選面板以外的地方就自動關閉,跟date-picker.tsx/month-filter.tsx同一支共用hook
+  useClickOutside(filterRef, () => setFilterOpen(false));
+
+  // 清單本身的捲動容器,選中店家變了就把對應的那一列捲到看得到的地方——
+  // 原本選中只有變色,店家在清單裡位置沒跟著捲動,如果是點地圖上的pin選到一家
+  // 清單要往下滑才看得到的店,使用者完全不知道選到了哪一家,還以為沒反應
+  const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!filterOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
-        setFilterOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [filterOpen]);
+    if (!selectedId) return;
+    const el = listRef.current?.querySelector(`[data-place-id="${CSS.escape(selectedId)}"]`);
+    // block:"nearest":已經在可視範圍內的話就不要多餘地捲動(例如本來就是點清單裡選的)，
+    // 只有真的被擋住看不到時才捲過去
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedId]);
 
   return (
     // 清單跟地圖之間的分隔線是這個頁面最主要的結構分界,改成粗黑邊(跟全站其他卡片
@@ -138,13 +142,14 @@ export default function MapSidebar({
           )}
         </div>
       </form>
-      {/* 手機版:佔滿一整排、文字置中的按鈕(跟SearchAreaButton同一套邊框/陰影樣式),
-          展開/收合下面的店家清單——搜尋列已經搬到上面永遠顯示,這裡收合的只是清單本身 */}
+      {/* 手機版:佔滿一整排、文字置中的按鈕,展開/收合下面的店家清單——搜尋列已經搬到
+          上面永遠顯示,這裡收合的只是清單本身。邊框/陰影樣式跟SearchAreaButton共用
+          lib/pill-button.ts的PILL_BUTTON_BASE,原本是兩份幾乎一樣的class字串 */}
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
-        className="mx-3 mt-3 mb-2 flex w-[calc(100%-1.5rem)] items-center justify-center gap-1.5 cursor-pointer rounded-full border-[3px] border-[#3C332B] bg-[#F6F2EA] px-3 py-1.5 text-xs font-medium text-[#4A3424] shadow-[3px_3px_0_0_#3C332B] transition-all hover:bg-[#F6EFE4] hover:shadow-[2px_2px_0_0_#3C332B] hover:translate-x-px hover:translate-y-px min-[760px]:hidden"
+        className={`${PILL_BUTTON_BASE} mx-3 mt-3 mb-2 w-[calc(100%-1.5rem)] justify-center min-[760px]:hidden`}
       >
         {searchQuery ? `「${searchQuery}」的搜尋結果` : "店家清單"}
         {places.length > 0 && ` (${places.length})`}
@@ -161,6 +166,7 @@ export default function MapSidebar({
           (超過內部捲動,避免清單展開時把地圖擠到只剩一條縫);760px以上用
           min-[760px]:強制蓋過,永遠展開、填滿剩餘高度,不受isOpen影響 */}
       <div
+        ref={listRef}
         className={`${isOpen ? "" : "hidden"} max-h-[180px] overflow-y-auto p-2 min-[760px]:block min-[760px]:max-h-none min-[760px]:flex-1 min-[760px]:min-h-0`}
       >
         {places.length === 0 && (
@@ -176,6 +182,7 @@ export default function MapSidebar({
         {places.map((place) => (
           <button
             key={place.id}
+            data-place-id={place.id}
             onClick={() => onSelect(place.id)}
             className={`w-full cursor-pointer text-left flex items-center gap-2 p-2 rounded-lg mb-1 transition-colors ${
               selectedId === place.id ? "bg-[#FAEEDA] border-2 border-[#C9732F]" : "hover:bg-[#F6EFE4] border-2 border-transparent"

@@ -8,29 +8,41 @@ export function useRatings(brandSlug: string, drinkId: string, uid: string | nul
   const [ratings, setRatings] = useState<number[]>([]);
   // 自己對這杯飲料的評分
   const [myRating, setMyRating] = useState<number | null>(null);
-  
+  const [ratingsError, setRatingsError] = useState(false);
+
   useEffect(() => {
+    // 重新訂閱前先清掉上一輪的錯誤狀態
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRatingsError(false);
     // 去 ratings 這個集合,挑出 brandSlug 跟 drinkId 都符合「這杯飲料」的文件
     const q = query(
       collection(db, "ratings"),
       where("brandSlug", "==", brandSlug),
       where("drinkId", "==", drinkId)
     );
-    //資料庫有變化就自動重新執行
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const values: number[] = [];
-      let mine: number | null = null;
-      // 把每一份文件的分數取出來,順便檢查是不是「我」打的那一筆
-      snapshot.docs.forEach((d) => {
-        const data = d.data();
-        values.push(data.rating);
-        if (uid && data.uid === uid) {
-          mine = data.rating;
-        }
-      });
-      setRatings(values);
-      setMyRating(mine);
-    });
+    // 這裡沒有loading畫面可以卡住,監聽失敗原本只會悄悄變成「尚無評分」,
+    // 跟真的沒人評分看起來一模一樣,加上error狀態讓畫面能分辨這兩種情況
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const values: number[] = [];
+        let mine: number | null = null;
+        // 把每一份文件的分數取出來,順便檢查是不是「我」打的那一筆
+        snapshot.docs.forEach((d) => {
+          const data = d.data();
+          values.push(data.rating);
+          if (uid && data.uid === uid) {
+            mine = data.rating;
+          }
+        });
+        setRatings(values);
+        setMyRating(mine);
+      },
+      (error) => {
+        console.error("ratings監聽失敗", error);
+        setRatingsError(true);
+      }
+    );
     return () => unsubscribe();
   }, [brandSlug, drinkId, uid]);
   //平均分數
@@ -49,7 +61,7 @@ export function useRatings(brandSlug: string, drinkId: string, uid: string | nul
     await deleteDoc(ref);
   };
 
-  return { average, count: ratings.length, myRating, submitRating, clearRating };
+  return { average, count: ratings.length, myRating, ratingsError, submitRating, clearRating };
 }
 
 export type DrinkRatingSummary = { average: number; count: number };
@@ -62,21 +74,27 @@ export function useBrandRatings(brandSlug: string) {
 
   useEffect(() => {
     const q = query(collection(db, "ratings"), where("brandSlug", "==", brandSlug));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const sums: Record<string, { total: number; count: number }> = {};
-      snapshot.docs.forEach((d) => {
-        const data = d.data();
-        const drinkId = data.drinkId as string;
-        if (!sums[drinkId]) sums[drinkId] = { total: 0, count: 0 };
-        sums[drinkId].total += data.rating;
-        sums[drinkId].count += 1;
-      });
-      const result: Record<string, DrinkRatingSummary> = {};
-      for (const [drinkId, { total, count }] of Object.entries(sums)) {
-        result[drinkId] = { average: total / count, count };
-      }
-      setRatingsByDrink(result);
-    });
+    // 這只是菜單列表上的裝飾性評分角標,監聽失敗頂多角標停在舊數字,
+    // 不值得為此做整套錯誤UI,但至少console記錄一下方便之後除錯
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const sums: Record<string, { total: number; count: number }> = {};
+        snapshot.docs.forEach((d) => {
+          const data = d.data();
+          const drinkId = data.drinkId as string;
+          if (!sums[drinkId]) sums[drinkId] = { total: 0, count: 0 };
+          sums[drinkId].total += data.rating;
+          sums[drinkId].count += 1;
+        });
+        const result: Record<string, DrinkRatingSummary> = {};
+        for (const [drinkId, { total, count }] of Object.entries(sums)) {
+          result[drinkId] = { average: total / count, count };
+        }
+        setRatingsByDrink(result);
+      },
+      (error) => console.error("brandRatings監聽失敗", error)
+    );
     return () => unsubscribe();
   }, [brandSlug]);
 
