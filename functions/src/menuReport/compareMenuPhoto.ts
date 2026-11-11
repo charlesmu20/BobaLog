@@ -53,11 +53,21 @@ function nextDiffId(): string {
   return `diff-${Date.now()}-${diffIdCounter}`;
 }
 
-// 名稱比對前先做最基本的正規化(去掉頭尾空白)——不做更複雜的模糊比對(例如忽略標點符號、
-// 同義詞),故意保守一點:比對不到寧可當作「可能是新品項」讓人工確認,也不要因為太激進的
-// 模糊比對把兩杯根本不同的飲料誤判成同一杯
+// 名稱比對前先做最基本的正規化(去掉頭尾空白、統一常見的「中點」符號寫法)——不做更複雜
+// 的模糊比對(例如忽略標點符號、同義詞),故意保守一點:比對不到寧可當作「可能是新品項」
+// 讓人工確認,也不要因為太激進的模糊比對把兩杯根本不同的飲料誤判成同一杯。
+// 中點符號這裡是例外:「經典奶茶·奶綠·奶烏」這種合併寫法常用的中點,菜單上印的符號、
+// AI辨識出來的版本、資料庫原本存的版本,常常是「肉眼看起來一模一樣,但Unicode編碼不同」
+// 的字元(全形間隔號・/半形間隔號･/項目符號•/連字號‧,長得都差不多),字串比對會判斷成
+// 不同名字,導致同一杯飲料被誤判成「新品項+疑似下架」兩筆——這不是「模糊比對兩個不同
+// 名字」的範疇,是同一個視覺符號的不同編碼,統一掉是安全的,不會增加誤判風險
+// 空白也是同樣道理:實測「季緣」這個品牌時發現,菜單上「魚池阿薩姆　鮮乳/奶茶」這種
+// 品項,品名跟後面「鮮乳/奶茶」選項之間印刷上留了一個空格,AI原封不動把空格抄近name裡,
+// 但資料庫裡原本存的是沒有空格的「魚池阿薩姆鮮乳/奶茶」——這類飲料名稱本來就不會靠空格
+// 來區分成不同品項(不像中文字本身那樣有意義),空格有沒有純粹是印刷排版、OCR轉譯的
+// 隨機差異,統一拿掉比對比較安全,不會增加「兩杯根本不同的飲料被誤判成同一杯」的風險
 function normalizeName(name: string): string {
-  return name.trim();
+  return name.trim().replace(/[・･•‧]/g, "·").replace(/\s+/g, "");
 }
 
 // 把「珍珠/仙草凍/綠茶凍」這種用「/」合併印在菜單上的名字拆開,個別去掉頭尾空白。
@@ -95,6 +105,7 @@ function diffDrinks(
         type: "newItem",
         name: item.name,
         extractedPrices: { M: item.priceM, L: item.priceL },
+        note: item.note ?? null,
       });
       continue;
     }
@@ -206,8 +217,7 @@ export async function compareMenuPhoto(
   const photoBuffer = await photoResponse.arrayBuffer();
   const photoBase64 = Buffer.from(photoBuffer).toString("base64");
 
-  // 【讀真實菜單資料】——brands/{slug}的drinks是子collection,不是陣列欄位,
-  // 跟scripts/migrate-brands.ts寫入時的結構要一致
+  // 【讀真實菜單資料】——brands/{slug}的drinks是子collection,不是陣列欄位
   const brandRef = db.collection("brands").doc(brandSlug);
   const [brandSnap, drinksSnap, extraction] = await Promise.all([
     brandRef.get(),
@@ -239,6 +249,42 @@ export async function compareMenuPhoto(
   const drinkDiffs = extraction.drinksVisible ? diffDrinks(ourDrinks, extraction.drinks) : [];
   const addOnDiffs = extraction.addOnsVisible ? diffAddOns(ourAddOns, extraction.addOns) : [];
 
+  // 上面那個「兩個visible都false」的安全檢查,擋得住「整張完全辨識不出來」的極端狀況,
+  // 但擋不住中間地帶:照片確實有拍到飲料菜單/加料表(visible是true),但只拍到一部分
+  // (例如菜單很長、手滑漏拍了下半段),沒拍到的那些既有品項一樣會被diffDrinks/
+  // diffAddOns判斷成「疑似下架」,而且AI自己不會知道自己漏拍了,不會主動提醒——
+  // 結果就是一大串其實還在賣的品項被判斷成下架,如果審核的人手滑按「全部核准」,
+  // 會把資料庫裡一大塊資料誤刪掉。這裡用「疑似下架筆數占現有品項比例」事後抓一次,
+  // 不是百分之百準(抓不到「這個品牌剛好真的大改款」這種情況),但至少能在
+  // 審核頁面多提醒一句,降低手滑的風險
+  const massRemovalWarning = (
+    label: string,
+    diffs: { type: MenuDiffType }[],
+    totalCount: number
+  ): string | null => {
+    const MIN_COUNT = 3;
+    // 門檻訂0.2(20%)而不是「超過一半」——用剛剛B2實測的真實數字驗算過,水巷茶弄漏拍
+    // 下半段菜單時是16/65款(約25%)被誤判疑似下架,如果門檻訂0.5反而完全抓不到
+    // 這個已經發生過的真實情境,訂低一點才抓得到「漏拍一大段分類」這種比較常見的狀況
+    const RATIO_THRESHOLD = 0.2;
+    const removedCount = diffs.filter((d) => d.type === "possiblyRemoved").length;
+    if (totalCount === 0 || removedCount < MIN_COUNT || removedCount / totalCount < RATIO_THRESHOLD) {
+      return null;
+    }
+    return (
+      `⚠️本次比對有${removedCount}/${totalCount}款${label}被判斷為疑似下架,比例偏高,` +
+      `很可能是照片沒有拍到完整${label}區塊(例如漏拍了某個分類),不是真的這麼多品項` +
+      `同時下架——套用前請先確認照片有沒有涵蓋全部${label}區塊。`
+    );
+  };
+  const extraWarnings = [
+    extraction.drinksVisible ? massRemovalWarning("飲料", drinkDiffs, ourDrinks.length) : null,
+    extraction.addOnsVisible ? massRemovalWarning("加料", addOnDiffs, ourAddOns.length) : null,
+  ].filter((w): w is string => w !== null);
+  // 用換行分開不同來源的提醒(Gemini自己講的不確定之處、跟我們這邊事後算出來的
+  // 比例警告),前端那邊的<p>有加whitespace-pre-line,換行會真的分段顯示,不會黏在一起
+  const combinedNote = [extraction.uncertainNote, ...extraWarnings].filter(Boolean).join("\n");
+
   return {
     drinks: drinkDiffs,
     addOns: addOnDiffs,
@@ -246,6 +292,6 @@ export async function compareMenuPhoto(
     addOnsCompared: extraction.addOnsVisible,
     // 沒有不確定的地方就完全不要帶這個欄位——Firestore Admin SDK預設不接受
     // 欄位值是undefined,不能像一般物件一樣寫uncertainNote: undefined
-    ...(extraction.uncertainNote ? { uncertainNote: extraction.uncertainNote } : {}),
+    ...(combinedNote ? { uncertainNote: combinedNote } : {}),
   };
 }

@@ -90,13 +90,15 @@ const ChatInputBar = forwardRef<HTMLInputElement, {
       </div>
 
       <div className="flex items-center gap-2 rounded-full bg-[#F6F2EA] px-2 py-1.5 ring-1 ring-black/5 focus-within:ring-2 focus-within:ring-[#C9732F]/40">
-        {/* capture="environment"在手機上會優先開後鏡頭相機,桌機瀏覽器會忽略這個屬性,
-            直接跳出檔案選擇視窗,兩邊都能正常運作 */}
+        {/* 原本這裡有capture="environment",原意是手機上想優先開相機拍照——但這個屬性
+            在不少手機瀏覽器上的實際效果是「只給拍照,完全不給從相簿選」,等於使用者想記錄
+            一張之前已經拍好的收據/飲料照片時,完全沒有入口可以選。拿掉這個屬性之後,
+            手機上會跳出系統原生的選單(通常同時有「拍照」跟「照片圖庫」兩個選項可以選),
+            桌機瀏覽器則完全不受影響(本來就會直接跳出檔案選擇視窗) */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];

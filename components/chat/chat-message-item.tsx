@@ -2,11 +2,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Sparkles, Check, ArrowRight } from "lucide-react";
+import { Sparkles, Check, ArrowRight, User } from "lucide-react";
 import type { ChatMessage } from "@/lib/hooks/useChatMessages";
 import BrandIcon from "@/components/brand-icon";
 import { toDateString } from "@/lib/history-utils";
 import TypewriterText from "@/components/chat/typewriter-text";
+// 這裡的Avatar跟components/ui/avatar.tsx的Avatar同名(下面那個是使用者自己的頭貼,
+// 用的是base UI那套有AvatarImage/AvatarFallback的元件),改名避免衝突
+import { Avatar as UserAvatarRoot, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 // AI頭像,assistant的每則訊息(純文字跟確認卡片都算)前面都會放一個——
 // 用柔和的漸層圓形+陰影,不是粗黑框那種硬線條。
@@ -17,6 +20,21 @@ export function Avatar() {
     <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#D98A44] to-[#B2612A] shadow-sm">
       <Sparkles className="size-3.5 text-white" />
     </div>
+  );
+}
+
+// 使用者自己的頭貼,放在自己說的話那顆泡泡右邊——跟留言區塊(comment-section.tsx等)
+// 同一套Avatar/AvatarImage/AvatarFallback,但這裡外框改成跟AI頭像一樣的shadow-sm
+// (不是留言那邊的粗黑框貼紙風格),視覺上才跟聊天面板其他圓形頭像一致。
+// 沒有頭貼(或還沒登入時extremely edge case)就用灰底+預設人形圖示頂著
+function UserAvatar({ photoURL }: { photoURL?: string | null }) {
+  return (
+    <UserAvatarRoot className="size-7 shrink-0 shadow-sm">
+      <AvatarImage src={photoURL ?? undefined} alt="你的頭像" />
+      <AvatarFallback className="bg-gradient-to-br from-[#D98A44] to-[#B2612A]">
+        <User className="size-3.5 text-white" />
+      </AvatarFallback>
+    </UserAvatarRoot>
   );
 }
 
@@ -43,7 +61,10 @@ function formatMessageTime(createdAt: number): string {
 // 沒有的話才當作一般文字回覆
 export default function ChatMessageItem({
   message,
+  userPhotoURL,
   onConfirm,
+  isConfirming,
+  confirmError,
   onCancel,
   onWrong,
   onQuickReply,
@@ -52,7 +73,16 @@ export default function ChatMessageItem({
   onNavigate,
 }: {
   message: ChatMessage;
+  // 使用者自己的頭貼網址(user.photoURL)——只有role是"user"的訊息才會用到,
+  // 從chat-panel.tsx的useCurrentUser()往下傳,這個元件自己不碰登入狀態
+  userPhotoURL?: string | null;
   onConfirm: (message: ChatMessage, amount: number, date: string, note: string) => void;
+  // 這則draft卡片是不是正在送出中(呼叫confirmDraft還沒結束)——確認記帳按鈕要disable,
+  // 避免網路慢的時候快速點兩下,重複寫進Firestore兩筆一樣的log
+  isConfirming: boolean;
+  // 上一次送出失敗的錯誤文字,只有失敗過才有值——顯示在卡片下面,卡片本身不會消失,
+  // 使用者可以直接再點一次「確認記帳」重試,不用重新描述一次飲料
+  confirmError?: string;
   onCancel: (message: ChatMessage) => void;
   onWrong: (message: ChatMessage) => void;
   // 卡片上的快捷按鈕用——目前只有MultiplePicksCards的「看看其他選項」在用,點了直接送出
@@ -75,7 +105,9 @@ export default function ChatMessageItem({
 
   if (message.role === "user") {
     content = (
-      <motion.div {...bubbleMotion(true)} className="flex justify-end">
+      // items-end+justify-end+gap-2,跟AI那邊「頭像+泡泡」左右對調的版面——
+      // 頭像放在泡泡外面(不算進max-w-[80%]裡),跟AI頭像的位置邏輯對稱
+      <motion.div {...bubbleMotion(true)} className="flex items-end justify-end gap-2">
         <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-br-md bg-gradient-to-br from-[#D98A44] to-[#B2612A] text-sm text-white shadow-md">
           {message.imageUrl && (
             // 這是使用者送出那張照片的本機預覽網址(URL.createObjectURL產生的blob網址),
@@ -85,10 +117,20 @@ export default function ChatMessageItem({
           )}
           {message.text && <div className="whitespace-pre-line px-4 py-2.5">{message.text}</div>}
         </div>
+        <UserAvatar photoURL={userPhotoURL} />
       </motion.div>
     );
   } else if (message.draft) {
-    content = <DraftCard message={message} onConfirm={onConfirm} onCancel={onCancel} onWrong={onWrong} />;
+    content = (
+      <DraftCard
+        message={message}
+        onConfirm={onConfirm}
+        isConfirming={isConfirming}
+        confirmError={confirmError}
+        onCancel={onCancel}
+        onWrong={onWrong}
+      />
+    );
   } else if (message.success) {
     content = <SuccessBubble success={message.success} />;
   } else if (message.recommendation) {
@@ -130,7 +172,11 @@ export default function ChatMessageItem({
     <div className="group">
       {content}
       {showTimestamp && (
-        <div className={`flex ${isUser ? "justify-end pr-1" : "justify-start pl-9"}`}>
+        // pr-9(使用者)/pl-9(AI)是同一個數字——都是頭像(size-7=28px)+間距(gap-2=8px)
+        // 加起來的寬度,讓時間對齊到泡泡文字的起始/結束位置,不是對齊到頭像下面。
+        // 使用者這邊原本是pr-1(頭像還在泡泡裡面、泡泡本身貼齊容器右邊時用的值),
+        // 現在頭像搬到泡泡外面,要比照AI那邊一起讓pr-9空出頭像的寬度
+        <div className={`flex ${isUser ? "justify-end pr-9" : "justify-start pl-9"}`}>
           <span className="text-[11px] text-[#8A7A63]/70 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
             {formatMessageTime(message.createdAt)}
           </span>
@@ -271,11 +317,15 @@ function MultiplePicksCards({
 function DraftCard({
   message,
   onConfirm,
+  isConfirming,
+  confirmError,
   onCancel,
   onWrong,
 }: {
   message: ChatMessage;
   onConfirm: (message: ChatMessage, amount: number, date: string, note: string) => void;
+  isConfirming: boolean;
+  confirmError?: string;
   onCancel: (message: ChatMessage) => void;
   onWrong: (message: ChatMessage) => void;
 }) {
@@ -350,26 +400,34 @@ function DraftCard({
           className="mt-2 w-full rounded-xl bg-[#F6F2EA] px-2.5 py-1.5 text-sm outline-none ring-1 ring-black/5 focus:ring-2 focus:ring-[#C9732F]/40"
         />
 
+        {/* 送出中的時候把取消/這不對也一起disable掉——不然使用者在確認記帳還在送出時
+            又點了取消,訊息會先被移除,等addDoc後來才成功回來,畫面上會突然冒出一張
+            「已經取消」之後卻又多一張成功卡片,順序整個亂掉 */}
         <div className="mt-2.5 flex gap-2">
           <button
             onClick={() => onCancel(message)}
-            className="flex-1 cursor-pointer rounded-full py-1.5 text-xs font-medium text-[#8A7A63] ring-1 ring-black/10 transition-colors hover:bg-black/[0.03]"
+            disabled={isConfirming}
+            className="flex-1 cursor-pointer rounded-full py-1.5 text-xs font-medium text-[#8A7A63] ring-1 ring-black/10 transition-colors hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-40"
           >
             取消
           </button>
           <button
             onClick={() => onWrong(message)}
-            className="flex-1 cursor-pointer rounded-full py-1.5 text-xs font-medium text-[#8A7A63] ring-1 ring-black/10 transition-colors hover:bg-black/[0.03]"
+            disabled={isConfirming}
+            className="flex-1 cursor-pointer rounded-full py-1.5 text-xs font-medium text-[#8A7A63] ring-1 ring-black/10 transition-colors hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-40"
           >
             這不對
           </button>
         </div>
+        {/* 送出失敗才會有confirmError——卡片保留在原地,不會悄悄消失或卡住沒反應,
+            使用者看得到發生了什麼事,直接再點一次下面的按鈕就能重試 */}
+        {confirmError && <p className="mt-1.5 text-xs text-red-500">{confirmError}</p>}
         <button
           onClick={() => onConfirm(message, parsedAmount, date, note)}
-          disabled={!isAmountValid}
+          disabled={!isAmountValid || isConfirming}
           className="mt-1.5 w-full cursor-pointer rounded-full bg-gradient-to-br from-[#D98A44] to-[#B2612A] py-1.5 text-sm font-bold text-white shadow-md transition hover:brightness-110 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          確認記帳
+          {isConfirming ? "記錄中..." : "確認記帳"}
         </button>
       </div>
     </motion.div>

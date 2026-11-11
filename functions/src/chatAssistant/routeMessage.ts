@@ -103,6 +103,7 @@ export async function routeMessage(
         keywords?: string[];
         brandName?: string;
         mentionedLocation?: string;
+        nearbyBrandNames?: string[];
         noPreference?: boolean;
       }
     );

@@ -152,6 +152,7 @@ export default function BrandMenuPage({ params }: { params: Promise<{ slug: stri
               sectionRefs.current[category] = el;
             }}
             highlightedCategory={highlightedCategory}
+            addOns={brand.addOns}
           />
         </>
       ) : (

@@ -13,11 +13,16 @@ import {
 } from "../catalog";
 
 // 一杯已經確定可以顯示成確認卡片的資料。addOns是比對到真實選項的加料(有name、price,
-// 金額已經算進amount裡了);比對不到真實選項的加料不會出現在這裡,而是被塞進note文字
+// 金額已經算進amount裡了);比對不到真實選項的加料不會出現在這裡,而是被塞進note文字。
+// brandSlug/drinkId:品牌/飲料的固定代號(跟lib/types.ts的LogEntry同一組欄位),
+// 確認記帳寫進logs時要帶著一起存——不然之後品牌改名,這筆log在編輯表單上會抓不到
+// 對應的品牌/飲料(跟log-modal.tsx手動新增log時存的理由一樣,這裡原本漏掉了)
 export type DraftItem = {
   brandName: string;
   brandIcon: string;
+  brandSlug: string;
   drinkName: string;
+  drinkId: string;
   size: "M" | "L" | null;
   amount: number;
   note: string;
@@ -87,16 +92,31 @@ type MatchSuccess = { ok: true; index: number; draft: DraftItem };
 type MatchFailure =
   | { ok: false; index: number; drinkName: string; reason: "not_found" }
   | { ok: false; index: number; drinkName: string; reason: "ambiguous"; options: string[] }
-  | { ok: false; index: number; drinkName: string; reason: "size_unclear"; drinkLabel: string };
+  | { ok: false; index: number; drinkName: string; reason: "size_unclear"; drinkLabel: string }
+  | { ok: false; index: number; brandName: string; reason: "brand_not_found" };
 type MatchOutcome = MatchSuccess | MatchFailure;
 
 // 把「比對一杯飲料」的邏輯抽出來獨立成一個函式,resolveLogDraft對每一杯都呼叫一次這個——
 // 跟原本單杯版本的比對邏輯完全一樣,只是多帶一個index(這是items陣列裡的第幾筆,從0開始),
 // 失敗的話不直接組文字,只記錄「為什麼失敗」,文字留給describeFailure統一組
 function matchOneItem(item: ExtractedDrink, index: number, catalog: CatalogBrand[]): MatchOutcome {
-  const brand = matchBrand(item.brandName, catalog);
+  const brand = item.brandName ? matchBrand(item.brandName, catalog) : null;
 
-  // 不管有沒有先比對到品牌,最後都整理成同一種格式:{brand, drink}[]
+  // 【修復】使用者(或對話歷史裡轉述的)有講品牌名稱,但這個品牌在真實資料裡完全比對不到——
+  // 這跟「使用者根本沒講品牌」是兩回事,要先分開判斷,不能直接退回去matchDrinkAcrossBrands
+  // 在「全部品牌」裡找飲料名稱。原本的寫法沒分這兩種情況,品牌比對不到時會跟「沒講品牌」
+  // 走同一條路,結果使用者講了一個不存在的品牌(例如「紅茶巴士」),卻得到一堆完全不相干
+  // 品牌的選項(因為「奶茶」這種常見名稱在好幾十個品牌裡都找得到),看起來像是系統偷偷
+  // 把品牌資訊丟掉,很容易誤會。正確做法是:品牌名稱有講、但比對不到,直接老實說品牌找不到,
+  // 不要擅自擴大搜尋範圍去猜使用者可能想講哪個品牌
+  if (item.brandName && !brand) {
+    return { ok: false, index, brandName: item.brandName, reason: "brand_not_found" };
+  }
+
+  // 不管有沒有先比對到品牌,最後都整理成同一種格式:{brand, drink}[]。
+  // 會走到matchDrinkAcrossBrands這條路的,理論上只剩「item.brandName真的是空字串」這種情況——
+  // 依LOG_SYSTEM_INSTRUCTION的規則,Gemini應該不會在完全沒品牌線索時呼叫這個工具
+  // (會先用文字反問),所以這裡只是留著當防呆退路,不是預期中的常態路徑
   const candidates = brand
     ? matchDrinkInBrand(item.drinkName, brand).map((drink) => ({ brand, drink }))
     : matchDrinkAcrossBrands(item.drinkName, catalog);
@@ -151,7 +171,9 @@ function matchOneItem(item: ExtractedDrink, index: number, catalog: CatalogBrand
     draft: {
       brandName: resolvedBrand.name,
       brandIcon: resolvedBrand.icon,
+      brandSlug: resolvedBrand.slug,
       drinkName: drink.name,
+      drinkId: drink.id,
       size,
       amount,
       note: noteParts.join("、"),
@@ -165,6 +187,9 @@ function matchOneItem(item: ExtractedDrink, index: number, catalog: CatalogBrand
 // 用換行符號\n列選項,不要用頓號全部擠成一段,不然選項一多擠在一起很難讀——
 // 前端的泡泡要搭配white-space:pre-line才會真的換行顯示
 function describeFailure(f: MatchFailure): string {
+  if (f.reason === "brand_not_found") {
+    return `我找不到「${f.brandName}」這個品牌,可以確認一下品牌名稱嗎?`;
+  }
   if (f.reason === "not_found") {
     return `我找不到符合「${f.drinkName}」的飲料,可以確認一下品牌或完整的飲料名稱嗎?`;
   }
@@ -178,6 +203,9 @@ function describeFailure(f: MatchFailure): string {
 // (不會說「可以確認一下嗎」「請問是哪一個」),是客觀陳述「這一杯怎麼了」,
 // 因為前面已經接了「第N杯」,整句話只在最後統一收尾請使用者重講一次就好
 function describeFailureShort(f: MatchFailure): string {
+  if (f.reason === "brand_not_found") {
+    return `找不到品牌「${f.brandName}」`;
+  }
   if (f.reason === "not_found") {
     return `「${f.drinkName}」找不到符合的飲料`;
   }

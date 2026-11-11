@@ -1,9 +1,10 @@
 "use client";
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Avatar } from "@/components/chat/chat-message-item";
 
 // AI正在組織回覆的時候顯示,三顆小圓點輪流跳動。不吃任何props,
-// 純粹的裝飾元件——要不要顯示由外面(chat-panel.tsx)的AnimatePresence+sending狀態決定
+// 純粹的裝飾元件——要不要顯示由外面(chat-panel.tsx)的AnimatePresence+sending狀態決定。
+// 頭像改用chat-message-item.tsx匯出的共用Avatar,不要自己再重複寫一份一樣的漸層圓形樣式
 export default function TypingIndicator() {
   return (
     <motion.div
@@ -12,9 +13,7 @@ export default function TypingIndicator() {
       exit={{ opacity: 0 }}
       className="flex items-end gap-2"
     >
-      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#D98A44] to-[#B2612A] shadow-sm">
-        <Sparkles className="size-3.5 text-white" />
-      </div>
+      <Avatar />
       <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
         {[0, 1, 2].map((i) => (
           <motion.span

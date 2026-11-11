@@ -47,6 +47,12 @@ function normalize(text: string) {
   return base;
 }
 
+// 只做小寫/の去除/去頭尾空白,刻意不裁切結尾的「茶」字——搭配normalize()一起用,
+// 接住下面looseMatch要修的那個情況(見looseMatch的註解)
+function normalizeKeepTrailingTea(text: string): string {
+  return text.toLowerCase().replace(/の/g, "").trim();
+}
+
 // 「鬆散比對」:兩邊正規化之後,看其中一邊是不是包含另一邊,兩個方向都接受。
 // 這裡跟地圖那邊的matchBrand.ts不一樣——matchBrand.ts只處理「Google店名一定比品牌全名
 // 更囉嗦,店名包著品牌名」這一種方向,因為Google的店名本來就是比較長、比較雜的那一邊。
@@ -110,8 +116,22 @@ function convertChineseNumeralsToDigits(text: string): string {
 function looseMatch(rawText: string, canonicalName: string) {
   const a = normalize(rawText);
   const b = normalize(canonicalName);
-  if (!a || !b) return false;
-  return a.includes(b) || b.includes(a);
+  if (a && b && (a.includes(b) || b.includes(a))) return true;
+
+  // 【修復】上面那組比對,兩邊都已經把結尾的「茶」字裁掉了——這本來是為了接住
+  // 「使用者多打/少打結尾這個茶字」的情況(例如使用者講「東方美人茶」,菜單存的是
+  // 「北埔·東方美人」),但這個裁切是看「每一邊自己的字數」各自獨立決定要不要裁,
+  // 沒有考慮到兩邊字數可能差很多:如果使用者講的本身就是一個很短、剛好以「茶」結尾的
+  // 兩個字(例如「奶茶」「紅茶」,長度剛好2,不會被裁掉),要去比對一個「前綴+這兩個字」
+  // 組成、長度大於2的飲料名稱(例如「萬波奶茶」「阿薩姆紅茶」,長度>2會被裁掉結尾的茶字,
+  // 變成「萬波奶」「阿薩姆紅」),裁完之後兩邊一個有茶字、一個沒有,反而比對失敗——
+  // 明明原始文字「萬波奶茶」裡就完整包含使用者講的「奶茶」兩個字。
+  // 所以這裡用「兩邊都保留茶字」的版本再比一次,只要其中一種組合(都裁掉/都保留)
+  // 比對得上就算數,不會互相蓋掉
+  const aKeepTea = normalizeKeepTrailingTea(rawText);
+  const bKeepTea = normalizeKeepTrailingTea(canonicalName);
+  if (!aKeepTea || !bKeepTea) return false;
+  return aKeepTea.includes(bKeepTea) || bKeepTea.includes(aKeepTea);
 }
 
 // 子序列比對:字的「順序」要對,但中間可以夾雜其他字,不需要連續——
@@ -171,24 +191,39 @@ export function matchBrand(rawText: string, brands: CatalogBrand[]): CatalogBran
   );
 }
 
-// 飲料名稱比對的三層規則,拆成三個獨立函式——matchDrinkInBrand(單一品牌內)跟
-// matchDrinkAcrossBrands(跨全部品牌)都要用同一套三層定義,差別只在「分層的範圍」:
-// matchDrinkInBrand是「這個品牌內部」一層一層退;matchDrinkAcrossBrands則是要retry
-// 整個「全部品牌」才退下一層(見下面matchDrinkAcrossBrands的說明,這是修掉的bug重點)
-// 1. 完全一樣的飲料名稱——找到就只採用這個,不要再混進下面兩層的結果,不然像「珍珠奶茶」
+// 打錯一個字的容錯:跟matchBrand用的是同一種編輯距離規則,只是這裡共用給飲料/加料名稱用。
+// 字數太短(少於3字)不套用——字一短,「只差一個字」涵蓋的範圍就很寬,容易誤配到完全不相關
+// 的名稱(例如「紅茶」改一個字就能變成一堆不相干的兩字詞),跟subsequenceMatch同樣的理由
+function typoMatch(rawText: string, canonicalName: string): boolean {
+  const a = normalize(rawText);
+  const b = normalize(canonicalName);
+  if (a.length < 3 || b.length < 3) return false;
+  return editDistance(a, b) <= 1;
+}
+
+// 飲料名稱、加料名稱共用的比對規則,抽成一個泛型函式——matchDrinkInBrand(單一品牌內)、
+// matchDrinkAcrossBrands(跨全部品牌)、matchAddOnInBrand(加料)原本各自把這些規則
+//複製了一份,比對的對象(drinks/addOns)不同、但規則完全一樣,統一用getName取出要比對的
+// 名稱字串就能共用,不用三份一模一樣的程式碼
+// 1. 完全一樣的名稱——找到就只採用這個,不要再混進下面幾層的結果,不然像「珍珠奶茶」
 //    這種精準輸入,會被菜單裡剛好字面上包含「奶茶」兩個字的其他飲料(例如單純的「奶茶」)
 //    一起拉進候選清單,變成語意上完全不同的東西也被列成選項
 // 2. 鬆散比對(連續子字串包含)——接住「珍奶」這種縮寫,或是多打了幾個字的情況
 // 3. 子序列比對(順序對、但可以不連續)——接住「黑糖鮮奶」漏講中間「珍珠」兩個字,
 //    對應到真正「黑糖珍珠鮮奶茶」這種情況
-function exactDrinkMatches(rawText: string, brand: CatalogBrand): CatalogDrink[] {
-  return brand.drinks.filter((d) => normalize(d.name) === normalize(rawText));
-}
-function looseDrinkMatches(rawText: string, brand: CatalogBrand): CatalogDrink[] {
-  return brand.drinks.filter((d) => looseMatch(rawText, d.name));
-}
-function subsequenceDrinkMatches(rawText: string, brand: CatalogBrand): CatalogDrink[] {
-  return brand.drinks.filter((d) => subsequenceMatch(rawText, d.name));
+// 4. 打錯一個字的容錯——接住「白鶴那提」這種只差一個字(提/堤)就對不上前三層的情況,
+//    跟matchBrand對品牌名稱的容錯是同一套規則,只在前三層完全沒中的時候才啟動
+function matchByTiers<T>(rawText: string, items: T[], getName: (item: T) => string): T[] {
+  const exact = items.filter((item) => normalize(getName(item)) === normalize(rawText));
+  if (exact.length > 0) return exact;
+
+  const loose = items.filter((item) => looseMatch(rawText, getName(item)));
+  if (loose.length > 0) return loose;
+
+  const subsequence = items.filter((item) => subsequenceMatch(rawText, getName(item)));
+  if (subsequence.length > 0) return subsequence;
+
+  return items.filter((item) => typoMatch(rawText, getName(item)));
 }
 
 // 已經知道是哪個品牌了,在它底下的飲料清單裡找使用者說的飲料名稱。
@@ -197,13 +232,7 @@ function subsequenceDrinkMatches(rawText: string, brand: CatalogBrand): CatalogD
 // 這個品牌可能同時有「檸檬紅茶」「阿薩姆紅茶」「蜂蜜紅茶」,通通符合)。
 // 真正該挑哪一款不是我們自己偷偷決定,交給呼叫的地方看命中數量再處理。
 export function matchDrinkInBrand(rawText: string, brand: CatalogBrand): CatalogDrink[] {
-  const exact = exactDrinkMatches(rawText, brand);
-  if (exact.length > 0) return exact;
-
-  const loose = looseDrinkMatches(rawText, brand);
-  if (loose.length > 0) return loose;
-
-  return subsequenceDrinkMatches(rawText, brand);
+  return matchByTiers(rawText, brand.drinks, (d) => d.name);
 }
 
 // 不知道品牌、只知道飲料名稱,直接在全部品牌的飲料裡找。
@@ -217,64 +246,109 @@ export function matchDrinkInBrand(rawText: string, brand: CatalogBrand): Catalog
 // 一模一樣名稱的飲料,卻被B品牌不相關的鬆散命中拖累,變成一堆選項要問使用者選。
 // 正確做法是:先看「全部品牌」裡有沒有任何exact命中,有的話只採用這些exact結果就好,
 // 完全不看loose/subsequence;全部品牌都沒有exact命中,才退一層改成收集全部品牌的loose結果;
-// 以此類推
+// 以此類推——做法是先把全部品牌的飲料攤平成同一份清單(每筆帶著自己的brand),
+// 再整份一起丟進matchByTiers,「retry整個全部品牌才退下一層」就自然成立,不用額外寫邏輯
 export function matchDrinkAcrossBrands(
   rawText: string,
   brands: CatalogBrand[]
 ): { brand: CatalogBrand; drink: CatalogDrink }[] {
-  const collect = (matcher: (rawText: string, brand: CatalogBrand) => CatalogDrink[]) => {
-    const hits: { brand: CatalogBrand; drink: CatalogDrink }[] = [];
-    for (const brand of brands) {
-      for (const drink of matcher(rawText, brand)) {
-        hits.push({ brand, drink });
-      }
-    }
-    return hits;
-  };
-
-  const exact = collect(exactDrinkMatches);
-  if (exact.length > 0) return exact;
-
-  const loose = collect(looseDrinkMatches);
-  if (loose.length > 0) return loose;
-
-  return collect(subsequenceDrinkMatches);
+  const flattened = brands.flatMap((brand) => brand.drinks.map((drink) => ({ brand, drink })));
+  return matchByTiers(rawText, flattened, (item) => item.drink.name);
 }
 
 // 已經知道是哪個品牌了(飲料都比對確定之後才會知道),在它的加料清單裡找使用者說的加料名稱。
-// 邏輯跟matchDrinkInBrand幾乎一樣(同樣分三層、同樣回傳「所有」命中),只是比對的對象
-// 換成brand.addOns——加料選項通常比較少,名稱也比較短,不至於需要另外寫一套比對規則
+// 規則跟matchDrinkInBrand共用同一個matchByTiers,只是比對的對象換成brand.addOns
 export function matchAddOnInBrand(rawText: string, brand: CatalogBrand): CatalogAddOn[] {
-  const exact = brand.addOns.filter((a) => normalize(a.name) === normalize(rawText));
-  if (exact.length > 0) return exact;
-
-  const loose = brand.addOns.filter((a) => looseMatch(rawText, a.name));
-  if (loose.length > 0) return loose;
-
-  return brand.addOns.filter((a) => subsequenceMatch(rawText, a.name));
+  return matchByTiers(rawText, brand.addOns, (a) => a.name);
 }
+
+// 模組層級的快取:記在這支檔案自己的記憶體裡,不是資料庫也不是前端——Cloud Functions
+// 短時間內連續被呼叫時,很高機率會重複使用同一個還沒被回收的執行環境,這個變數就會一直
+// 留著,直到過期或整個執行環境被回收(閒置一段時間沒人用)才會重置。
+// 聊天室一次對話常常連續打好幾句話(記帳問細節、推薦問口味、看看其他選項...),
+// 每一句話都重新把整份品牌+飲料資料從Firestore撈一次,資料明明沒變,完全是白工——
+// 加這層快取之後,同一段時間內的重複呼叫可以直接重用上一次撈到的結果。
+//
+// 但這層只在「同一個執行環境」裡有效——Cloud Functions不保證連續幾次呼叫會用到
+// 同一個執行環境,換了一個新的(或冷啟動的)執行環境,這個變數是空的,還是得整份
+// 重新查一次。所以下面另外加了一層「大家共用」的Firestore快取文件,解決換執行環境
+// 就失效的問題:這個模組變數負責最快的那一層(完全不用問資料庫),Firestore那份
+// 文件負責「換了執行環境,也還能用別人剛查好的結果」那一層,兩層疊在一起用
+let cachedCatalog: { data: CatalogBrand[]; fetchedAt: number } | null = null;
+// 60秒:快取有效期限不要設太長——管理員審核「菜單回報」之後,品牌/飲料資料是真的會被
+// 改掉的,设一個短的有效期限,確保改完之後最多一分鐘左右聊天機器人就會看到新資料,
+// 不會因為快取永遠生效而一直用舊資料
+const CATALOG_CACHE_TTL_MS = 60 * 1000;
+
+// 共用快取存在這份Firestore文件裡(跟「brands」collection平行、不會跟真正的品牌資料混在一起)。
+// 整份品牌+飲料資料直接存成這份文件的一個欄位——Firestore單份文件的大小上限是1MB,
+// 這份菜單資料遠遠不到這個量,不用擔心超過
+const CATALOG_CACHE_COLLECTION = "cache";
+const CATALOG_CACHE_DOC_ID = "catalog";
 
 // 從Firestore把整份品牌+飲料菜單撈出來,給上面這些比對函式用。
 // 跟lib/hooks/useSearchIndex.ts的做法一樣:每個品牌底下的drinks子collection平行發出去查,
 // 不要一個做完才查下一個,N個品牌就是N個查詢一起發出去,一起等結果回來
 export async function loadCatalog(db: Firestore): Promise<CatalogBrand[]> {
+  // 下面這幾個console.log是特別加來讓你可以在Firebase Functions的log裡親眼確認,
+  // 這次呼叫到底是走了哪一條路——「本機記憶體快取」「共用Firestore快取」還是
+  // 「真的重新整個查一次」,三種情況訊息都不一樣,方便肉眼對照
+  if (cachedCatalog && Date.now() - cachedCatalog.fetchedAt < CATALOG_CACHE_TTL_MS) {
+    console.log("[菜單快取] 命中本機記憶體快取,沒有碰Firestore");
+    return cachedCatalog.data;
+  }
+
+  const cacheDocRef = db.collection(CATALOG_CACHE_COLLECTION).doc(CATALOG_CACHE_DOC_ID);
+
+  // 自己這個執行環境沒有快取,但別的執行環境可能已經查過、寫進了這份共用的Firestore
+  // 快取文件——先讀這一份文件(只要1次讀取)看看新不新鮮,新鮮的話直接拿來用,
+  // 不用自己重新查一次全部品牌+飲料(45次左右的讀取)。
+  // 這份讀取失敗(例如文件還不存在,或剛好網路出狀況)不應該讓整個查詢跟著失敗,
+  // 退回去重新查就好,所以包一層try/catch,只記錄錯誤不往外丟
+  try {
+    const cacheSnap = await cacheDocRef.get();
+    const cached = cacheSnap.data() as { data: CatalogBrand[]; fetchedAt: number } | undefined;
+    if (cached && Date.now() - cached.fetchedAt < CATALOG_CACHE_TTL_MS) {
+      cachedCatalog = cached;
+      console.log("[菜單快取] 命中共用Firestore快取文件,只讀了1次,沒有重新查全部品牌");
+      return cached.data;
+    }
+  } catch (err) {
+    console.error("讀取共用菜單快取失敗,改成重新查詢完整菜單", err);
+  }
+
+  console.log("[菜單快取] 快取沒命中(過期或是第一次),真的重新查一次全部品牌+飲料");
   const brandsSnap = await db.collection("brands").get();
 
-  return Promise.all(
+  const data = await Promise.all(
     brandsSnap.docs.map(async (brandDoc) => {
-      const data = brandDoc.data();
+      const brandData = brandDoc.data();
       const drinksSnap = await db.collection("brands").doc(brandDoc.id).collection("drinks").get();
       return {
         id: brandDoc.id,
-        name: data.name,
-        slug: data.slug,
-        icon: data.icon,
+        name: brandData.name,
+        slug: brandData.slug,
+        icon: brandData.icon,
         drinks: drinksSnap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<CatalogDrink, "id">),
         })),
-        addOns: (data.addOns as CatalogAddOn[] | undefined) ?? [],
+        addOns: (brandData.addOns as CatalogAddOn[] | undefined) ?? [],
       };
     })
   );
+
+  const fetchedAt = Date.now();
+  cachedCatalog = { data, fetchedAt };
+
+  // 把剛查好的結果寫回共用快取文件,讓之後換到別的執行環境的請求也能直接用這份結果。
+  // 寫入失敗一樣不影響這次查詢本身——這次拿到的data還是對的,頂多下次其他執行環境
+  // 沒搶到這份快取、要自己重新查一次而已,所以同樣只記錄錯誤、不丟出去
+  try {
+    await cacheDocRef.set({ data, fetchedAt });
+  } catch (err) {
+    console.error("寫入共用菜單快取失敗", err);
+  }
+
+  return data;
 }

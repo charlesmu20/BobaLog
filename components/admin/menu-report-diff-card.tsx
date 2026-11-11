@@ -26,6 +26,7 @@ export default function MenuReportDiffCard({
   type,
   name,
   priceLine,
+  note,
   decision,
   onDecide,
   locked,
@@ -33,6 +34,9 @@ export default function MenuReportDiffCard({
   type: DiffType;
   name: string;
   priceLine: string;
+  // 只有新品項才會有這個(從照片括號裡抓出來的甜度限制/過敏原/成分說明等),
+  // 讓審核的人核准前就能看到,核准後也會直接存進這杯飲料的note欄位
+  note?: string | null;
   decision: DiffDecision;
   onDecide: (decision: DiffDecision) => void;
   // 這筆回報已經處理完了(不是pending)——卡片本身跟選過的結果都還留著給人看,
@@ -49,6 +53,7 @@ export default function MenuReportDiffCard({
           <p className="truncate text-sm font-bold text-[#3C332B]">{name}</p>
         </div>
         <p className="mt-0.5 text-xs text-[#8A7A63]">{priceLine}</p>
+        {note && <p className="mt-0.5 truncate text-xs text-[#A67C52]">備註:{note}</p>}
       </div>
       <div className="flex shrink-0 gap-1.5">
         <button

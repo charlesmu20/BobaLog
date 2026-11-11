@@ -23,7 +23,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { ChatTurn } from "../gemini";
 import type { CatalogBrand, CatalogDrink } from "../catalog";
-import { loadCatalog } from "../catalog";
+import { loadCatalog, matchBrand } from "../catalog";
 import { findNearbyBrands } from "./nearbyBrands";
 import { resolveBrandDrinkQuery } from "./recommendCatalog";
 import { buildCandidateDrinks, anyDrinkMatchesKeywords, MAX_TOTAL, type CandidateDrink } from "./candidateDrinks";
@@ -123,7 +123,7 @@ export async function resolveRecommendChatFromIntent(
   let location = userLocation;
   if (intent.mentionedLocationRaw) {
     try {
-      const resolved = await resolveLocationName(placesApiKey, intent.mentionedLocationRaw);
+      const resolved = await resolveLocationName(db, placesApiKey, intent.mentionedLocationRaw);
       if (resolved) {
         location = resolved;
       }
@@ -135,11 +135,38 @@ export async function resolveRecommendChatFromIntent(
   let nearbyResult: Awaited<ReturnType<typeof findNearbyBrands>> | null = null;
   if (location) {
     try {
-      nearbyResult = await findNearbyBrands(placesApiKey, location, catalog);
+      nearbyResult = await findNearbyBrands(db, placesApiKey, location, catalog);
     } catch (err) {
       console.error("[推薦]findNearbyBrands失敗,當作沒有附近品牌資料處理:", err);
     }
   }
+
+  // ===== 2b. 沒有座標可用時,使用者自己回答「附近有看到什麼店」的這份清單當作替代 =====
+  // 只有在GPS/地點名稱都查不到(nearbyResult還是null)的時候才用這份清單——GPS查到的
+  // 比較準確,已經有的話優先採用,不要被使用者口頭講的這份蓋掉。
+  // 拿intent.nearbyBrandNamesRaw(可能好幾家)去跟真實品牌資料逐一比對(matchBrand跟
+  // 情境三指定品牌用的是同一支),比對到的組成品牌清單,刻意沿用跟findNearbyBrands
+  // (nearbyBrands.ts)完全一樣的回傳形狀{type, brands}——下面情境二的候選組裝、
+  // nearbyNote/fallbackNote判斷完全不用另外寫一套,直接吃得到
+  if (!nearbyResult && intent.nearbyBrandNamesRaw.length > 0) {
+    const seenBrandIds = new Set<string>();
+    const matchedBrands: CatalogBrand[] = [];
+    for (const rawName of intent.nearbyBrandNamesRaw) {
+      const brand = matchBrand(rawName, catalog);
+      if (brand && !seenBrandIds.has(brand.id)) {
+        seenBrandIds.add(brand.id);
+        matchedBrands.push(brand);
+      }
+    }
+    // 跟findNearbyBrands的fallback邏輯一致:一家都比對不到的話,退回整個資料庫,
+    // 不要留在null——使用者明明已經回答過這個問題,不該因為我們這邊比對不到
+    // 就又被問一次同樣的問題
+    nearbyResult =
+      matchedBrands.length > 0
+        ? { type: "nearby", brands: matchedBrands }
+        : { type: "allBrands", brands: catalog };
+  }
+
   const nearbyBrands = nearbyResult ? nearbyResult.brands : null;
 
   // ===== 情境二:有口味關鍵字,不用反問,直接拿附近品牌(有座標)或全部品牌去找候選 =====
@@ -188,9 +215,10 @@ export async function resolveRecommendChatFromIntent(
     };
   }
 
-  // 完全沒有地點資訊的時候才多問一句「附近有什麼店」,已經知道座標就不用問這個,
-  // 後端自己查得到
-  const clarifying = buildClarifyingQuestion({ askNearbyBrand: location === null });
+  // 完全沒有任何「附近品牌」資訊的時候才多問一句「附近有什麼店」——不是只看座標
+  // (location === null),因為使用者可能已經直接回答過這個問題、靠nearbyBrandNamesRaw
+  // 比對出了nearbyResult,這種情況即使location還是null,也不該再問一次一樣的問題
+  const clarifying = buildClarifyingQuestion({ askNearbyBrand: nearbyResult === null });
   return { type: "clarify", text: clarifying.text, tasteOptions: clarifying.tasteOptions };
 }
 
@@ -234,14 +262,13 @@ async function pickFromCandidates(
   if (picked.type === "picked") {
     // 單選一律當作recommendation畫成那張比較大的單一卡片,不管有沒有附近備註/
     // 要不要附理由,這點不受asCardsWithoutReason影響——只有多選(options)才會因為
-    // asCardsWithoutReason決定要不要帶理由
-    if (options.asCardsWithoutReason) {
-      return {
-        type: "multiplePicks",
-        picks: [{ brand: picked.brand, drink: picked.drink }],
-        hasMore: candidates.length > 1,
-      };
-    }
+    // asCardsWithoutReason決定要不要帶理由。
+    // 【修復】這裡原本還有一段`if (options.asCardsWithoutReason) { return multiplePicks... }`,
+    // 跟上面這段註解寫的設計完全矛盾(變成單選時,asCardsWithoutReason反而會把recommendation
+    // 改畫成只有1張的multiplePicks小卡片)——這是之前某次調整asCardsWithoutReason邏輯時
+    // 留下來、没有一併清掉的舊分支,實際跑起來的行為跟註解講的對不上。拿掉這段之後,
+    // 單選一律統一回傳recommendation,reason固定呼叫appendNote組出來(pick_recommendation
+    // 工具本身reason是必填欄位,就算使用者說「都可以」,Gemini還是會給一句話,不會是空字串)
     const reason = appendNote(picked.reason, options, false);
     return { type: "recommendation", brand: picked.brand, drink: picked.drink, reason };
   }

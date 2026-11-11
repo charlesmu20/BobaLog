@@ -1,8 +1,10 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
-import { Heart, Star } from "lucide-react";
-import type { Drink } from "@/lib/brands";
+import { Heart, Plus, Star } from "lucide-react";
+import type { AddOn, Drink } from "@/lib/brands";
 import type { DrinkRatingSummary } from "@/lib/hooks/useRating";
+import AddOnsModal from "@/components/brand-menu/addons-modal";
 
 export default function BrandMenuList({
   brandSlug,
@@ -12,6 +14,7 @@ export default function BrandMenuList({
   registerSectionRef,
   highlightedCategory,
   ratingsByDrink,
+  addOns,
 }: {
   brandSlug: string;
   grouped: Record<string, Drink[]>;
@@ -21,12 +24,17 @@ export default function BrandMenuList({
   highlightedCategory: string | null;
   // 只有被評分過的飲料才會出現在這個map裡,沒評分過的drink.id查不到就不顯示角標
   ratingsByDrink: Record<string, DrinkRatingSummary>;
+  // 這個品牌可加購的配料,沒有或是空陣列就不顯示「加料」按鈕
+  addOns?: AddOn[];
 }) {
   const entries = Object.entries(grouped);
+  const [addOnsOpen, setAddOnsOpen] = useState(false);
+  const hasAddOns = !!addOns && addOns.length > 0;
 
   return (
     <div className="bg-[#F6F2EA] rounded-2xl border-[3px] border-[#3C332B] shadow-[5px_5px_0_0_#3C332B] p-5">
-      {entries.map(([category, drinks]) => (
+      {hasAddOns && <AddOnsModal open={addOnsOpen} onClose={() => setAddOnsOpen(false)} addOns={addOns!} />}
+      {entries.map(([category, drinks], index) => (
         <div
           key={category}
           ref={(el) => registerSectionRef(category, el)}
@@ -36,9 +44,23 @@ export default function BrandMenuList({
               : "border-transparent shadow-none"
           }`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-1 h-4 bg-[#A6C285] rounded-full border border-[#3C332B]" />
-            <div className="text-base font-black text-[#3C332B]">{category}</div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-4 bg-[#A6C285] rounded-full border border-[#3C332B]" />
+              <div className="text-base font-black text-[#3C332B]">{category}</div>
+            </div>
+            {/* 加料按鈕只跟著第一個分類的標題列一起顯示,跟標題平行對齊,
+                不要自己佔一整列 */}
+            {index === 0 && hasAddOns && (
+              <button
+                type="button"
+                onClick={() => setAddOnsOpen(true)}
+                className="flex items-center gap-1 rounded-full border-2 border-[#3C332B] bg-white px-3 py-1.5 text-xs font-bold text-[#3C332B] transition-colors cursor-pointer hover:bg-[#A6C285]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                加料
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5">

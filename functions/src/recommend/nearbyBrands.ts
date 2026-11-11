@@ -10,6 +10,7 @@
 // 需要精確距離去畫「300公尺」這種標籤給使用者看,只是要抓「大概在附近」的品牌當候選,
 // 所以不另外自己再算一次真實距離過濾,直接信任Google排序後的結果就好
 
+import type { Firestore } from "firebase-admin/firestore";
 import { searchNearbyBobaShops } from "./places";
 import { matchPlaceToBrand } from "./placeBrandMatch";
 import type { CatalogBrand } from "../catalog";
@@ -23,11 +24,12 @@ export type NearbyBrandsResult =
   | { type: "allBrands"; brands: CatalogBrand[] };
 
 export async function findNearbyBrands(
+  db: Firestore,
   placesApiKey: string,
   center: { lat: number; lng: number },
   catalog: CatalogBrand[]
 ): Promise<NearbyBrandsResult> {
-  const rawPlaces = await searchNearbyBobaShops(placesApiKey, center, NEARBY_RADIUS_METERS);
+  const rawPlaces = await searchNearbyBobaShops(db, placesApiKey, center, NEARBY_RADIUS_METERS);
 
   const matchedBrands = dedupeBrands(
     rawPlaces

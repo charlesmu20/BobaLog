@@ -69,12 +69,18 @@ export function buildBrandClarifyingQuestion(brandName: string): {
 //              使用者只是還沒講,不代表他「明確表示」沒差,這種noPreference要是false,
 //              讓協調函式照舊反問;只有使用者這句話真的在表達「我沒差/你決定」的時候才是true,
 //              這樣協調函式才知道「已經問過了,不用再問一次,可以照使用者說的放寬條件去選」
+// nearbyBrandNamesRaw:跟brandNameRaw是兩件不一樣的事,不要混用——brandNameRaw是使用者
+// 「明確指定想喝這個品牌」(情境三,候選範圍會鎖定只剩這一家);nearbyBrandNamesRaw是使用者
+// 單純在回答「附近有看到什麼店?」這個反問(只有定位失敗/沒給座標時才會問),列出來的
+// 可能有好幾家,只是用來當作「附近品牌」這個地理篩選範圍的替代資料來源,不代表使用者
+// 一定要喝哪一家——所以設計成陣列,不是跟brandNameRaw共用同一個單數欄位
 export type RecommendIntentResult =
   | {
       type: "intent";
       keywords: string[];
       brandNameRaw: string | null;
       mentionedLocationRaw: string | null;
+      nearbyBrandNamesRaw: string[];
       noPreference: boolean;
     }
   | { type: "reply"; text: string };
@@ -122,6 +128,19 @@ export const EXTRACT_INTENT_DECLARATION: FunctionDeclaration = {
           "使用者提到的地點名稱(例如中山捷運站、台北車站、公司),用來找這個地點附近的店," +
           "沒有提到地點就不要填這個欄位",
       },
+      nearbyBrandNames: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "【跟brandName不一樣,請分清楚】這個欄位專門用來接『附近有看到什麼手搖飲店嗎?』這句" +
+          "反問的答案——使用者只是在列出附近實際看到的店,可能一家,也可能好幾家,不代表" +
+          "使用者一定要喝哪一家,只是提供地理範圍讓後端去查這些店裡有沒有符合口味的飲料。" +
+          "跟brandName的差別:brandName是使用者明確表示『我就是想喝這個品牌』,只會有一個;" +
+          "這個欄位是單純列出附近看到的店家,用陣列,沒有限制只能填一個。" +
+          "如果使用者這句話沒有在回答『附近有看到什麼店』,或完全沒提到任何店名,就不要填。" +
+          "同樣地,如果對話紀錄裡之前已經確立過這份清單,這次使用者是問『還有其他的嗎』," +
+          "也要把這份清單原封不動填回來,不要留空",
+      },
       noPreference: {
         type: "boolean",
         description:
@@ -153,9 +172,16 @@ export const EXTRACT_INTENT_SYSTEM_INSTRUCTION =
   "(例如『清爽』『解膩』)時更需要補幾個具體一點的詞。2~4個關鍵字、挑最常見的幾種寫法就好," +
   "不用展開到太發散,也避免塞進太籠統的單一個字(例如單一個『茶』字)。" +
   "【重要】使用者問『還有其他的嗎』時,noPreference填true的同時,也別忘了把對話紀錄裡" +
-  "之前已經確立的keywords/brandName原封不動填回去,不要因為這句話本身沒有重複講一次就留空——" +
-  "這兩件事是分開的:noPreference表示『這句話沒有補充新偏好』,keywords/brandName則是" +
-  "『整個對話到目前為止已經確立的偏好』,兩者要同時正確填寫" +
+  "之前已經確立的keywords/brandName/nearbyBrandNames原封不動填回去,不要因為這句話本身" +
+  "沒有重複講一次就留空——這兩件事是分開的:noPreference表示『這句話沒有補充新偏好』," +
+  "keywords/brandName/nearbyBrandNames則是『整個對話到目前為止已經確立的偏好』," +
+  "三者要同時正確填寫。" +
+  "【重要,請分清楚brandName跟nearbyBrandNames】這是兩個完全不同的欄位,不要混用:" +
+  "brandName是使用者『明確表示想喝這個品牌』(例如『我想喝50嵐』),只會是單一一個品牌;" +
+  "nearbyBrandNames是使用者在回答你問的『附近有看到什麼手搖飲店嗎?』這句話,單純列出" +
+  "附近實際看到的店家,可能列出一家,也常常是好幾家,這種情況下不管列出幾家,都要填進" +
+  "nearbyBrandNames這個陣列,不要只挑一家填進brandName、把其他家漏掉——這跟『使用者指定" +
+  "想喝哪個品牌』是兩回事,使用者只是在幫忙描述附近環境,沒有要你鎖定其中一家。" +
   "如果使用者的訊息跟飲料推薦完全無關(例如打招呼、問別的事情),不要呼叫工具,直接用自然、" +
   "簡短、親切的語氣回覆文字就好。" +
   "回覆的文字一律用純文字,不要用任何markdown語法(例如**粗體**、_斜體_、#標題、-項目符號等)。";
@@ -167,6 +193,7 @@ export function buildRecommendIntentFromArgs(args: {
   keywords?: string[];
   brandName?: string;
   mentionedLocation?: string;
+  nearbyBrandNames?: string[];
   noPreference?: boolean;
 }): Extract<RecommendIntentResult, { type: "intent" }> {
   return {
@@ -174,6 +201,7 @@ export function buildRecommendIntentFromArgs(args: {
     keywords: args.keywords ?? [],
     brandNameRaw: args.brandName ?? null,
     mentionedLocationRaw: args.mentionedLocation ?? null,
+    nearbyBrandNamesRaw: args.nearbyBrandNames ?? [],
     noPreference: args.noPreference ?? false,
   };
 }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Search, X, Camera, ChevronDown } from "lucide-react";
 import { db, storage } from "@/lib/firebase";
-import { resizeImageToBlob } from "@/lib/image-utils";
+import { resizeImageToBlob, toDisplayableImage } from "@/lib/image-utils";
 import type { BrandSummary } from "@/lib/brands";
 import BrandIcon from "@/components/brand-icon";
 import { ClearInputButton } from "@/components/ui/clear-input-button";
@@ -65,6 +65,9 @@ export default function ReportModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // 選照片這個動作現在是非同步的(HEIC要先轉檔才能生出預覽圖,見handleSelectPhoto),
+  // 用一個遞增流水號擋住競速——跟chat-panel.tsx的handleImageSelect同一套做法
+  const photoSelectionRef = useRef(0);
 
   const filteredBrands = useMemo(
     () => brands.filter((b) => b.name.includes(brandInput)),
@@ -74,6 +77,26 @@ export default function ReportModal({
   // 問題說明是必填——光一個「菜單價格問題」這種分類不夠具體,要有文字說清楚
   // 哪杯飲料、差多少錢,之後看回報的人才知道怎麼處理
   const isDescriptionValid = description.trim() !== "";
+
+  // 【修復】這個元件在外層(app/brand/[slug]/page.tsx等)只是切換open這個prop顯示/隱藏,
+  // 整個元件並沒有重新mount,所以defaultBrandSlug只有在最開始掛載那一刻的useState初始值
+  // 裡套用過一次。送出一次回報後resetForm()會把brandInput/selectedBrand清空,
+  // 之後再打開視窗,因為沒有重新mount,品牌欄位就一直停在空白,不會再自動帶入
+  // defaultBrandSlug——要靠這個effect在每次「開啟」(open從false變true)時主動重新
+  // 套用一次預設值,不能只靠掛載時的useState初始值
+  useEffect(() => {
+    if (!open) return;
+    const brand = defaultBrandSlug ? brands.find((b) => b.slug === defaultBrandSlug) ?? null : null;
+    // 跟著外部傳進來的open這個訊號重新套用預設值,屬於跟外部狀態同步的合理情境
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIssueType("menuItem");
+    setSelectedBrand(brand);
+    setBrandInput(brand?.name ?? "");
+    setDescription(initialDescription ?? "");
+    // 故意只在open變化時重新套用預設值,不要因為brands陣列參照變動就在使用者打開視窗、
+    // 正在輸入時被打斷重置
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const resetForm = () => {
     setIssueType("menuItem");
@@ -94,10 +117,20 @@ export default function ReportModal({
     setSelectedBrand(null);
   };
 
-  const handleSelectPhoto = (file: File) => {
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+  const handleSelectPhoto = async (file: File) => {
+    // HEIC/HEIF格式(iPhone拍照預設)瀏覽器沒辦法直接顯示縮圖,要先轉成JPEG——
+    // 跟lib/image-utils.ts裡resizeImageToBlob要解決的是同一個問題,共用同一支
+    // toDisplayableImage。轉完之後直接把轉換過的File存進photoFile,後面送進
+    // resizeImageToBlob時也是用這個已經轉好的版本,不用再轉一次
+    const selectionId = ++photoSelectionRef.current;
+    const displayable = await toDisplayableImage(file);
+    if (photoSelectionRef.current !== selectionId) return;
+
+    setPhotoFile(displayable);
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(displayable);
+    });
   };
 
   const handleClearPhoto = () => {

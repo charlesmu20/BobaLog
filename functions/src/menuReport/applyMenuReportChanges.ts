@@ -61,7 +61,7 @@ export async function applyMenuReportChanges(
         tx.set(brandRef.collection("drinks").doc(drinkId), {
           name: diff.name,
           category: null,
-          note: null,
+          note: diff.note ?? null,
           prices: diff.extractedPrices,
         });
         drinkCountDelta += 1;

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Camera, Undo2, Loader2 } from "lucide-react";
+import { Camera, Undo2, Loader2, ArrowLeft } from "lucide-react";
 import { STICKER_CARD_BASE } from "@/lib/sticker-card";
 import { STICKER_BUTTON_BASE } from "@/lib/sticker-button";
 import {
@@ -35,9 +35,19 @@ type FlatDiff = {
   type: DiffType;
   name: string;
   priceLine: string;
+  note?: string | null;
 };
 
-export default function MenuReportDetail({ report }: { report: MenuReport }) {
+export default function MenuReportDetail({
+  report,
+  onBack,
+}: {
+  report: MenuReport;
+  // 手機版「抽屜式」切換用:選了一筆之後detail佔滿螢幕、sidebar清單整個藏起來,
+  // 所以detail裡要有個返回按鈕讓人切回清單——桌面版兩欄一直都顯示,不需要這顆按鈕,
+  // 用min-[760px]:hidden直接擋掉就好,不用另外傳參數控制要不要渲染
+  onBack: () => void;
+}) {
   const { working, error, applyDecision, revertAllChanges, updateStatus } =
     useMenuReportActions();
   const [decisions, setDecisions] = useState<Record<string, DiffDecision>>({});
@@ -58,6 +68,7 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
           : d.type === "priceMismatch"
             ? `${formatPrices(d.currentPrices)} → ${formatPrices(d.extractedPrices)}`
             : formatPrices(d.extractedPrices),
+      note: d.note,
     })),
     ...(report.aiDiff?.addOns ?? []).map((a) => ({
       diffId: a.diffId,
@@ -85,14 +96,24 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
   };
 
   const handleApply = async () => {
-    await applyDecision(report.id, approvedDiffIds);
-    setConfirmOpen(false);
-    setDecisions({});
+    try {
+      await applyDecision(report.id, approvedDiffIds);
+      setConfirmOpen(false);
+      setDecisions({});
+    } catch {
+      // 失敗訊息已經由useMenuReportActions.run()存進error狀態、畫面上會顯示——
+      // 這裡接住只是不要讓它變成unhandled promise rejection,不用再做其他事,
+      // 保持視窗開著讓人看到錯誤訊息、可以重試
+    }
   };
 
   const handleNoApply = async () => {
-    await updateStatus(report.id, "rejected", note);
-    setNoApplyConfirmOpen(false);
+    try {
+      await updateStatus(report.id, "rejected", note);
+      setNoApplyConfirmOpen(false);
+    } catch {
+      // 理由同上,錯誤訊息已經顯示,這裡只是接住rethrow
+    }
   };
 
   const hasPhoto = !!report.photoUrl;
@@ -107,7 +128,16 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
   const stillRecognizing = hasPhoto && !report.aiDiffStatus && report.status === "pending";
 
   return (
-    <div className="flex-1 min-w-0 p-5">
+    <div className="flex-1 min-w-0 overflow-y-auto p-5">
+      {/* 只有手機版的「抽屜式」切換需要這顆返回鍵——桌面版sidebar本來就一直顯示在旁邊,
+          不需要額外的返回動作 */}
+      <button
+        type="button"
+        onClick={onBack}
+        className="mb-3 flex items-center gap-1 text-sm font-bold text-[#3C332B] min-[760px]:hidden"
+      >
+        <ArrowLeft className="size-4" /> 返回清單
+      </button>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <h3 className="text-base font-bold text-[#3C332B]">{report.brandName}</h3>
         <span className="rounded-full bg-[#F0997B] px-2.5 py-0.5 text-xs font-bold text-[#4A1B0C]">
@@ -147,7 +177,7 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
       {/* AI辨識時自己跳過了某些看不清楚的品項,主動回報哪裡有問題——不管這筆回報
           現在是什麼狀態都顯示,提醒審核的人這次比對結果可能不完整,要特別注意 */}
       {report.aiDiff?.uncertainNote && (
-        <p className="mb-4 rounded-xl border-2 border-dashed border-[#E3B655] bg-[#FDF0D5] px-4 py-3 text-sm text-[#7A5209]">
+        <p className="mb-4 whitespace-pre-line rounded-xl border-2 border-dashed border-[#E3B655] bg-[#FDF0D5] px-4 py-3 text-sm text-[#7A5209]">
           AI提醒:{report.aiDiff.uncertainNote}
         </p>
       )}
@@ -230,13 +260,14 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
               </button>
             </div>
           </div>
-          <div className="mb-4 grid grid-cols-1 gap-2 min-[600px]:grid-cols-2">
+          <div className="mb-4 grid grid-cols-1 gap-2 min-[1000px]:grid-cols-2">
             {flatDiffs.map((d) => (
               <MenuReportDiffCard
                 key={d.diffId}
                 type={d.type}
                 name={d.name}
                 priceLine={d.priceLine}
+                note={d.note}
                 decision={decisions[d.diffId]}
                 onDecide={(decision) => setDecisions((prev) => ({ ...prev, [d.diffId]: decision }))}
                 locked={reviewLocked}
@@ -271,7 +302,9 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
               <button
                 type="button"
                 disabled={working}
-                onClick={() => revertAllChanges(report.id)}
+                // .catch(() => {}):失敗訊息已經由useMenuReportActions.run()存進error
+                // 狀態、畫面上會顯示,這裡只是接住rethrow,不要變成unhandled promise rejection
+                onClick={() => { revertAllChanges(report.id).catch(() => {}); }}
                 className="flex items-center gap-1 rounded-lg border-2 border-[#3C332B] bg-[#F6F2EA] px-2.5 py-1 text-xs font-bold text-[#3C332B] transition-colors enabled:cursor-pointer enabled:hover:bg-[#EDE6D8] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {working ? (
@@ -283,7 +316,7 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
               </button>
             )}
           </div>
-          <div className="mb-4 grid grid-cols-1 gap-2 min-[600px]:grid-cols-2">
+          <div className="mb-4 grid grid-cols-1 gap-2 min-[1000px]:grid-cols-2">
             {report.appliedChanges.map((c) => (
               <div
                 key={c.diffId}
@@ -314,7 +347,7 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
             <button
               type="button"
               disabled={working}
-              onClick={() => updateStatus(report.id, "approved", note)}
+              onClick={() => { updateStatus(report.id, "approved", note).catch(() => {}); }}
               className={`${STICKER_BUTTON_BASE} flex-1 rounded-xl py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50`}
             >
               核准
@@ -322,7 +355,7 @@ export default function MenuReportDetail({ report }: { report: MenuReport }) {
             <button
               type="button"
               disabled={working}
-              onClick={() => updateStatus(report.id, "rejected", note)}
+              onClick={() => { updateStatus(report.id, "rejected", note).catch(() => {}); }}
               className="flex-1 cursor-pointer rounded-xl border-[3px] border-[#3C332B] bg-[#F6F2EA] py-2.5 text-sm font-bold text-[#3C332B] transition-colors hover:bg-[#EDE6D8] disabled:cursor-not-allowed disabled:opacity-50"
             >
               拒絕

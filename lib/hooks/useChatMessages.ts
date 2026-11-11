@@ -21,7 +21,9 @@ export type ChatMessage = {
   draft?: {
     brandName: string;
     brandIcon: string;
+    brandSlug: string;
     drinkName: string;
+    drinkId: string;
     size: "M" | "L" | null;
     amount: number;
     note: string;
@@ -120,12 +122,21 @@ function getBrowserLocation(): Promise<{ lat: number; lng: number } | null> {
 type DraftItem = {
   brandName: string;
   brandIcon: string;
+  brandSlug: string;
   drinkName: string;
+  drinkId: string;
   size: "M" | "L" | null;
   amount: number;
   note: string;
   addOns: { name: string; price: number }[];
 };
+
+// 組出一則AI(model)訊息——id/role/createdAt這幾個欄位每一則AI訊息都一樣,
+// 原本每個要新增model訊息的地方都各自重複寫一次,抽成這支函式,呼叫端只需要給
+// 真正會變動的那幾個欄位(text,以及選填的draft/success/recommendation/...)
+function buildModelMessage(uid: string, fields: Omit<ChatMessage, "id" | "uid" | "role" | "createdAt">): ChatMessage {
+  return { id: crypto.randomUUID(), uid, role: "model", createdAt: Date.now(), ...fields };
+}
 
 // AI聊天視窗的對話紀錄。這份對話紀錄只存在前端記憶體(一般useState),不寫進Firestore——
 // 重新整理整個網頁會重置,但只是關掉/打開聊天面板不會(聊天面板本身一直掛在layout.tsx,
@@ -139,11 +150,26 @@ export function useChatMessages(uid: string | null) {
   // 成功送出(不管哪一次)就清空;重新呼叫（重試或送出新訊息)一開始也會先清空,
   // 避免殘留上一次失敗的內容
   const [lastFailed, setLastFailed] = useState<{ text: string; image?: File | null } | null>(null);
+  // confirmDraft(確認記帳)專用的狀態,跟上面sendMessage那套error/lastFailed分開管理——
+  // 這是兩個不同的動作,不要共用同一組state。confirmingIds:正在送出中的那幾則draft訊息id
+  // (用Set不用單一值,因為理論上畫面上可能同時有好幾張draft卡片,各自獨立送出,不要互相卡住)。
+  // 按鈕要依此disable,防止網路慢的時候快速點兩下,重複寫進Firestore兩筆一樣的log。
+  // confirmErrors:訊息id→錯誤文字,記錄失敗時顯示在對應那張卡片下面,讓使用者知道發生了
+  // 什麼事、可以再點一次重試(卡片本身不會被移除,照抄原本的金額/日期/備註直接再試一次就好)
+  const [confirmingIds, setConfirmingIds] = useState<Set<string>>(new Set());
+  const [confirmErrors, setConfirmErrors] = useState<Record<string, string>>({});
   // 用ref保留最新的messages,避免sendMessage內用到閉包裡舊的陣列
   const messagesRef = useRef<ChatMessage[]>([]);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // 把某一則訊息(通常是draft卡片)換成另一則新訊息——cancelDraft/reportWrongDraft/
+  // confirmDraft成功之後都是同一個動作(移除舊的那張卡片、接上一句收尾訊息),原本三個地方
+  // 各自重複寫一次filter+append,抽成這支函式
+  function replaceMessage(messageId: string, replacement: ChatMessage) {
+    setMessages((prev) => [...prev.filter((m) => m.id !== messageId), replacement]);
+  }
 
   // 真正呼叫後端+處理回應的邏輯,不負責把使用者這句話畫面上的泡泡加進對話紀錄——
   // 那件事交給呼叫端(sendMessage加新泡泡、retryLastMessage不用,因為泡泡早就在畫面上了),
@@ -160,10 +186,26 @@ export function useChatMessages(uid: string | null) {
       const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }));
 
       // 照片縮小壓縮後轉成base64(拍照記帳用——推薦飲料不吃圖片,但這裡不用先判斷
-      // 這句話最後會被後端判斷成記帳還是推薦,有照片就先轉,後端自己會決定用不用)
+      // 這句話最後會被後端判斷成記帳還是推薦,有照片就先轉,後端自己會決定用不用)。
+      // 這一步單獨包一層try/catch,不要讓它跟下面的網路/Gemini錯誤混在一起用同一句
+      // 「剛剛出了點問題,可以再試一次嗎」帶過——問題出在這張照片本身讀不起來(resizeImageToBase64
+      // 內部已經會先把iPhone常見的HEIC/HEIF轉成JPEG,所以會走到這裡的通常是檔案本身損壞,
+      // 或是連HEIC轉檔都失敗這種更罕見的情況),使用者去按「重試」只會用同一張壞掉的照片
+      // 再送一次,得到一模一樣的失敗,等於卡死。
+      // 所以這裡提早用return跳出,只設定一句講清楚原因、要使用者換張照片的訊息,
+      // 並且把lastFailed清成null(不管之前是不是還留著別次失敗的殘值)——這種情況下
+      // 不該出現「重試」按鈕,重試這張壞掉的照片只會得到一樣的結果,外層的finally
+      // 還是會執行到,負責把sending收尾
       let encodedImage: EncodedImage | undefined;
       if (image) {
-        encodedImage = await resizeImageToBase64(image);
+        try {
+          encodedImage = await resizeImageToBase64(image);
+        } catch (err) {
+          console.error("照片讀取/壓縮失敗", err);
+          setError("這張照片沒辦法讀取,可能是檔案損壞或格式特殊,換一張照片再試試看。");
+          setLastFailed(null);
+          return;
+        }
       }
 
       // 先問一次瀏覽器定位——使用者如果已經同意過,這次通常馬上就能拿到(或拿到快取座標),
@@ -198,24 +240,17 @@ export function useChatMessages(uid: string | null) {
           // 有比對到真實加料選項的話,順便列進整理好的那句話裡,讓使用者一眼就看到
           // 金額裡已經包含哪些加料,不用自己點開卡片才看得到
           const addOnsLabel = d.addOns.length > 0 ? `,加${d.addOns.map((a) => a.name).join("、")}` : "";
-          return {
-            id: crypto.randomUUID(),
-            uid,
-            role: "model",
+          return buildModelMessage(uid, {
             text: `幫你整理好了:${d.brandName} ${d.drinkName}${sizeLabel}${addOnsLabel} $${d.amount}`,
             draft: d,
-            createdAt: Date.now(),
-          };
+          });
         });
         setMessages((prev) => [...prev, ...draftMessages]);
       } else if (data.domain === "recommend" && data.type === "recommendation") {
         const { brand, drink, reason } = data;
         setMessages((prev) => [
           ...prev,
-          {
-            id: crypto.randomUUID(),
-            uid,
-            role: "model",
+          buildModelMessage(uid, {
             text: reason,
             recommendation: {
               brandName: brand.name,
@@ -225,8 +260,7 @@ export function useChatMessages(uid: string | null) {
               drinkId: drink.id,
               reason,
             },
-            createdAt: Date.now(),
-          },
+          }),
         ]);
       } else if (data.domain === "recommend" && data.type === "multiplePicks") {
         // 挑了幾杯列出來,畫成幾張小卡片——text欄位放一句純文字摘要(不是畫面上會顯示的
@@ -243,10 +277,7 @@ export function useChatMessages(uid: string | null) {
           : `好的,那幫你隨便選了幾款:\n${lines.join("\n")}`;
         setMessages((prev) => [
           ...prev,
-          {
-            id: crypto.randomUUID(),
-            uid,
-            role: "model",
+          buildModelMessage(uid, {
             text,
             multiplePicks: picks.map((p) => ({
               brandName: p.brand.name,
@@ -257,22 +288,25 @@ export function useChatMessages(uid: string | null) {
             })),
             multiplePicksReason: reason,
             multiplePicksHasMore: hasMore,
-            createdAt: Date.now(),
-          },
+          }),
         ]);
       } else {
         // 剩下的情況(記帳的question、推薦的clarify反問/reply、兩邊都無關的chat reply)
         // 都當純文字顯示就好。text抽成區域變數是因為result.data在這個分支裡TypeScript
         // 窄化不完全,要在外面先取出來才抓得到型別
         const text = data.text;
-        setMessages((prev) => [...prev, { id: crypto.randomUUID(), uid, role: "model", text, createdAt: Date.now() }]);
+        setMessages((prev) => [...prev, buildModelMessage(uid, { text })]);
       }
       // 這次成功了,之前如果有失敗紀錄(不管是不是這次重試的同一筆),都可以清掉——
       // 代表「上一個卡住的問題已經過去了」,重試按鈕沒必要繼續留著
       setLastFailed(null);
-    } catch {
+    } catch (err) {
       // 呼叫失敗(網路、Gemini出錯等)——記下這次失敗的原始內容,讓「重試」按鈕
-      // 可以直接重打一次一樣的請求,使用者不用自己重新打一次字
+      // 可以直接重打一次一樣的請求,使用者不用自己重新打一次字。
+      // 原本這裡沒有console.error,失敗時開發者工具主控台完全看不到任何細節,
+      // 只能看著同一句「不好意思,剛剛出了點問題」卻不知道到底是哪裡出錯——
+      // 跟confirmDraft失敗時的處理方式補齊,一樣記錄下來方便除錯
+      console.error("聊天訊息呼叫chatAssistant失敗", err);
       setError("不好意思,剛剛出了點問題,可以再試一次嗎?");
       setLastFailed({ text: trimmed, image });
     } finally {
@@ -311,20 +345,25 @@ export function useChatMessages(uid: string | null) {
     await runAssistantCall(lastFailed.text, lastFailed.image);
   }
 
+  // 重新整理對話:效果比照「把網頁重新整理一次」——因為整份對話紀錄本來就只存在
+  // 這個hook的前端記憶體裡(檔案開頭註解說過,不寫進Firestore),所以「重置」跟
+  // 「網頁重新整理後,這個hook被重新掛載一次」拿到的其實是同一組初始狀態:
+  // messages清空、之前的錯誤/重試殘留、記帳確認中的狀態通通歸零。
+  // 不需要額外呼叫後端或清什麼伺服器端資料——本來就沒有伺服器端的對話狀態要清
+  // (chatAssistant每次呼叫都是無狀態的,全部靠前端傳過去的history)
+  function resetChat() {
+    setMessages([]);
+    setError(null);
+    setLastFailed(null);
+    setConfirmingIds(new Set());
+    setConfirmErrors({});
+  }
+
   // 取消:把這則帶draft的訊息移除,並留一句話收尾——不要悄悄消失什麼都不說,
   // 不然使用者會搞不清楚是真的取消成功了,還是卡住了
   function cancelDraft(message: ChatMessage) {
     if (!uid) return;
-    setMessages((prev) => [
-      ...prev.filter((m) => m.id !== message.id),
-      {
-        id: crypto.randomUUID(),
-        uid,
-        role: "model",
-        text: "好的,這筆先不記了,需要的話隨時再跟我說。",
-        createdAt: Date.now(),
-      },
-    ]);
+    replaceMessage(message.id, buildModelMessage(uid, { text: "好的,這筆先不記了,需要的話隨時再跟我說。" }));
   }
 
   // 「這不對」:跟取消不一樣,這個情境是AI配錯了但使用者還想繼續講,
@@ -332,48 +371,68 @@ export function useChatMessages(uid: string | null) {
   // (不要整個清空,前面的對話歷史還在,Gemini之後看得到剛剛配錯的是什麼)
   function reportWrongDraft(message: ChatMessage) {
     if (!uid) return;
-    setMessages((prev) => [
-      ...prev.filter((m) => m.id !== message.id),
-      {
-        id: crypto.randomUUID(),
-        uid,
-        role: "model",
-        text: "好的,不好意思配錯了,可以再跟我說一次正確的品牌或飲料嗎?",
-        createdAt: Date.now(),
-      },
-    ]);
+    replaceMessage(
+      message.id,
+      buildModelMessage(uid, { text: "好的,不好意思配錯了,可以再跟我說一次正確的品牌或飲料嗎?" })
+    );
   }
 
   // 確認記帳:把draft資料(加上使用者可能調整過的金額、日期、備註)寫進真正的logs,
   // 成功後把這張卡片換成一句收尾訊息——前面的對話歷史保留,跟cancelDraft/reportWrongDraft
-  // 同一套做法(filter掉這則、append新的一則),不再像以前整段清空
+  // 同一套做法(filter掉這則、append新的一則),不再像以前整段清空。
+  // 防重複送出:先檢查confirmingIds擋掉短時間內的第二次呼叫(按鈕disabled是第一道防線,
+  // 這裡是第二道,萬一還是漏點到)。錯誤處理:addDoc失敗(離線、權限問題)不會讓卡片悄悄卡住,
+  // 而是記錄一句錯誤訊息到confirmErrors,卡片本身不移除,使用者可以直接再點一次「確認記帳」重試,
+  // 不用重新描述一次飲料
   async function confirmDraft(message: ChatMessage, amount: number, date: string, note: string) {
     if (!uid || !message.draft) return;
-    const { brandName, brandIcon, drinkName, size, addOns } = message.draft;
+    if (confirmingIds.has(message.id)) return;
 
-    await addDoc(collection(db, "logs"), {
-      uid,
-      brand: brandName,
-      drink: drinkName,
-      size,
-      amount,
-      date,
-      note,
-      addOns,
-      createdAt: serverTimestamp(),
+    setConfirmingIds((prev) => new Set(prev).add(message.id));
+    setConfirmErrors((prev) => {
+      if (!(message.id in prev)) return prev;
+      const next = { ...prev };
+      delete next[message.id];
+      return next;
     });
 
-    setMessages((prev) => [
-      ...prev.filter((m) => m.id !== message.id),
-      {
-        id: crypto.randomUUID(),
+    const { brandName, brandIcon, brandSlug, drinkName, drinkId, size, addOns } = message.draft;
+
+    try {
+      await addDoc(collection(db, "logs"), {
         uid,
-        role: "model",
-        text: `已經記錄:${brandName} ${drinkName} $${amount}`,
-        success: { brandName, brandIcon, drinkName, amount },
-        createdAt: Date.now(),
-      },
-    ]);
+        brand: brandName,
+        drink: drinkName,
+        // ?? null:Firestore的addDoc不接受undefined欄位值,直接寫undefined會整筆寫入失敗。
+        // 正常情況後端一定會給這兩個欄位,這裡只是防呆——例如前後端部署沒同步(functions還沒
+        // 重新deploy,舊版後端回傳的draft沒有這兩個欄位)時,退回存null,不要讓整筆記帳寫入失敗
+        brandSlug: brandSlug ?? null,
+        drinkId: drinkId ?? null,
+        size,
+        amount,
+        date,
+        note,
+        addOns,
+        createdAt: serverTimestamp(),
+      });
+
+      replaceMessage(
+        message.id,
+        buildModelMessage(uid, {
+          text: `已經記錄:${brandName} ${drinkName} $${amount}`,
+          success: { brandName, brandIcon, drinkName, amount },
+        })
+      );
+    } catch (err) {
+      console.error("確認記帳寫入logs失敗", err);
+      setConfirmErrors((prev) => ({ ...prev, [message.id]: "不好意思,記錄失敗了,可以再試一次嗎?" }));
+    } finally {
+      setConfirmingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(message.id);
+        return next;
+      });
+    }
   }
 
   return {
@@ -384,7 +443,10 @@ export function useChatMessages(uid: string | null) {
     canRetry: lastFailed !== null,
     retryLastMessage,
     confirmDraft,
+    confirmingIds,
+    confirmErrors,
     cancelDraft,
     reportWrongDraft,
+    resetChat,
   };
 }

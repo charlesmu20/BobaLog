@@ -22,9 +22,8 @@ export type AppliedChange = {
   reverted: boolean;
 };
 
-// 跟scripts/migrate-brands.ts用同一套規則算飲料文件ID,這樣AI核准新增的飲料
-// 之後如果又被收進migrate-brands.ts(例如你後來手動把它補進lib/brands.ts),
-// 算出來的ID會是同一個,不會重複建立
+// 飲料文件ID用品牌slug+名稱算出來的固定雜湊值,不是隨機ID——這樣同一個品牌、
+// 同一個名稱不管是誰、什麼時候新增的,算出來都是同一個ID,不會重複建立
 export function computeDrinkId(slug: string, name: string): string {
   return (
     parseInt(createHash("md5").update(`${slug}-${name}`).digest("hex").slice(0, 8), 16) % 10000000

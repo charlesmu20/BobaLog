@@ -79,16 +79,26 @@ export default function MenuReportSidebar({
   reports,
   selectedId,
   onSelect,
+  hideOnMobile,
 }: {
   reports: MenuReport[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  // 手機版用「抽屜式」切換:選了一筆回報之後,手機版改成detail佔滿全螢幕,
+  // 這個清單就要整個藏起來(桌面版不受影響,維持兩欄並排,一定要看得到)
+  hideOnMobile?: boolean;
 }) {
   const pending = reports.filter((r) => r.status === "pending");
   const done = reports.filter((r) => r.status !== "pending");
 
   return (
-    <div className="flex w-[210px] shrink-0 flex-col overflow-y-auto border-r-[3px] border-[#3C332B]">
+    // 手機版(760px以下):全寬、限制最高高度,自己用右側捲軸捲動(不是跟著整頁捲),
+    // 選了一筆之後整個隱藏讓detail佔滿螢幕。
+    // 桌面版:固定210px寬、滿版高度自己捲動,右邊用直線分隔detail區塊,
+    // 不管有沒有選,兩欄一定都顯示,不會互相隱藏
+    <div
+      className={`${hideOnMobile ? "hidden" : "flex"} max-h-[60vh] w-full shrink-0 flex-col overflow-y-auto border-b-[3px] border-[#3C332B] min-[760px]:flex min-[760px]:max-h-none min-[760px]:w-[210px] min-[760px]:border-r-[3px] min-[760px]:border-b-0`}
+    >
       {reports.length === 0 && (
         <p className="flex flex-1 items-center justify-center px-3 text-center text-sm text-[#8A7A63]">
           目前沒有任何回報

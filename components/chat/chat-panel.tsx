@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle } from "lucide-react";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useChatMessages } from "@/lib/hooks/useChatMessages";
+import { toDisplayableImage } from "@/lib/image-utils";
 import ChatMessageItem, { Avatar, bubbleMotion } from "@/components/chat/chat-message-item";
 import LoginRequiredModal from "@/components/login-required-modal";
 import ChatHeader from "@/components/chat/chat-header";
@@ -29,8 +30,11 @@ export default function ChatPanel() {
     canRetry,
     retryLastMessage,
     confirmDraft,
+    confirmingIds,
+    confirmErrors,
     cancelDraft,
     reportWrongDraft,
+    resetChat,
   } = useChatMessages(user?.uid ?? null);
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -39,6 +43,10 @@ export default function ChatPanel() {
   // 本機縮圖預覽網址(給輸入框那排顯示用)分開存,兩個是不同用途
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
+  // 選照片這個動作現在是非同步的(HEIC要先轉檔才能生出預覽圖,見handleImageSelect),
+  // 用一個遞增流水號擋住競速——使用者在轉檔還沒完成時又選了另一張照片的話,
+  // 只有「最後一次選的那次」轉完才真的套用到畫面上,避免比較慢的舊結果蓋掉新選的那張
+  const imageSelectionRef = useRef(0);
 
   // 捲到最新訊息用的錨點——放在訊息清單最底部,每次訊息變多、開始打字中動畫、
   // 或是重新打開面板時,都把這個錨點捲進可視範圍,使用者不用自己手動往下滑
@@ -58,11 +66,23 @@ export default function ChatPanel() {
   // 直接整個不渲染——跟之前user是null時的那個return null是同一種做法,只是判斷條件換成頁面路徑
   if (pathname === "/login") return null;
 
-  function handleImageSelect(file: File) {
-    // 選新照片前,先把上一張(如果有)的預覽網址釋放掉,不然每選一次就多留一個沒用到的blob網址
-    if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
-    setPendingImage(file);
-    setPendingImagePreview(URL.createObjectURL(file));
+  async function handleImageSelect(file: File) {
+    // HEIC/HEIF格式(iPhone拍照預設)瀏覽器沒辦法直接顯示縮圖——跟lib/image-utils.ts裡
+    // resizeImageToBase64要解決的是同一個問題,所以共用同一支toDisplayableImage先轉成
+    // JPEG。轉完之後直接把這個轉換過的File存進pendingImage,後面不管是送給Gemini辨識、
+    // 還是存進訊息紀錄裡的縮圖,統一都用這個已經轉好的版本,不用後面每個地方各自再轉一次
+    const selectionId = ++imageSelectionRef.current;
+    const displayable = await toDisplayableImage(file);
+    // 轉檔這段期間使用者又選了別張照片的話,這次結果已經過時,直接丟掉不要套用
+    if (imageSelectionRef.current !== selectionId) return;
+
+    setPendingImage(displayable);
+    // 用updater function讀「當下最新的」prev值來釋放舊網址,不要依賴閉包裡轉檔前
+    // 當下那一刻的pendingImagePreview——避免非同步轉檔期間萬一狀態已經變動,釋放錯網址
+    setPendingImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(displayable);
+    });
   }
 
   function handleImageClear() {
@@ -81,6 +101,18 @@ export default function ChatPanel() {
     setPendingImage(null);
     setPendingImagePreview(null);
     sendMessage(text, image);
+  }
+
+  // 重新整理對話:效果比照「把整個網頁重新整理一次」——不只是清掉useChatMessages
+  // 那份對話紀錄,連這個檔案自己管的「還沒送出的輸入框文字/待送出照片」這些暫存狀態
+  // 也要一起歸零,不然會出現「對話清空了,但輸入框裡還留著上一輪打到一半的字」這種
+  // 不上不下的狀態,跟「重新整理網頁」給人的預期不一致
+  function handleReset() {
+    if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
+    setPendingImage(null);
+    setPendingImagePreview(null);
+    setInput("");
+    resetChat();
   }
 
   function handleToggle() {
@@ -114,7 +146,7 @@ export default function ChatPanel() {
             // 米色背景)不搭,這個深咖啡色才是全站粗邊框共用的顏色語言
             className="fixed inset-4 z-40 flex flex-col overflow-hidden rounded-3xl bg-gradient-to-b from-[#F7EAD7] to-[#FBF8F3] shadow-2xl ring-[3px] ring-[#3C332B] min-[760px]:inset-auto min-[760px]:bottom-24 min-[760px]:right-6 min-[760px]:h-[560px] min-[760px]:w-[420px]"
           >
-            <ChatHeader onClose={() => setOpen(false)} />
+            <ChatHeader onClose={() => setOpen(false)} onReset={handleReset} />
 
             <div className="flex-1 space-y-2.5 overflow-y-auto px-3 pb-4 pt-6">
               {messages.length === 0 && !sending && (
@@ -131,7 +163,10 @@ export default function ChatPanel() {
                 <ChatMessageItem
                   key={m.id}
                   message={m}
+                  userPhotoURL={user?.photoURL}
                   onConfirm={confirmDraft}
+                  isConfirming={confirmingIds.has(m.id)}
+                  confirmError={confirmErrors[m.id]}
                   onCancel={cancelDraft}
                   onWrong={reportWrongDraft}
                   onQuickReply={(text) => sendMessage(text)}
